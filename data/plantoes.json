@@ -1,18 +1,6 @@
 {
-  "shifts": [
-    {
-      "id": "mtyxau1pbk7a8i",
-      "createdAt": "2026-09-12T21:54:40.669Z",
-      "date": "2026-09-19",
-      "location": "Sem local",
-      "startTime": "07:00",
-      "endTime": "19:00",
-      "value": 0,
-      "status": "pendente",
-      "notes": ""
-    }
-  ],
+  "shifts": [],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-12T21:55:36.373Z"
+  "updatedAt": "2026-09-12T21:55:38.173Z"
 }
