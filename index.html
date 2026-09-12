@@ -6,6 +6,7 @@
 <title>Plantões do Lucas</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F6F6B'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='white' text-anchor='middle'%3EPL%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --paper:#EEF3F1; --surface:#FFFFFF; --ink:#16232B; --ink-soft:#4B5B63; --ink-faint:#7C8B87;
@@ -367,6 +368,29 @@
       <button class="btn danger small" id="ghTokenClear">Remover token</button>
       <button class="btn small" id="ghSyncNow">Sincronizar agora</button>
       <button class="btn primary small" id="ghTokenSave">Salvar token</button>
+    </div>
+
+    <div style="height:1px;background:var(--line);margin:20px 0;"></div>
+
+    <h3 style="font-size:14px;">Sincronizar com o Google Calendário</h3>
+    <p class="note">Cada plantão salvo (ou apagado) é enviado direto para o seu Google Agenda, em tempo real. Configuração única, feita por você em <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">console.cloud.google.com</a>:</p>
+    <ol class="note" style="padding-left:18px;margin:8px 0;">
+      <li>Crie um projeto (qualquer nome) e ative a "Google Calendar API" (menu "APIs e serviços" → "Ativar APIs e serviços").</li>
+      <li>Em "Tela de permissão OAuth", escolha "Externo", preencha o básico e adicione seu e-mail do Google em "Usuários de teste".</li>
+      <li>Em "Credenciais" → "Criar credenciais" → "ID do cliente OAuth" → tipo "Aplicativo da Web". Em "Origens JavaScript autorizadas" adicione exatamente: <span class="mono">https://lucasebsantos4.github.io</span></li>
+      <li>Copie o "ID do cliente" (termina em <span class="mono">.apps.googleusercontent.com</span>) e cole abaixo.</li>
+    </ol>
+    <p class="note">Na primeira conexão o Google avisa "app não verificado" — é esperado para um app pessoal; clique em "Avançado" → "Acessar (nome do app) (não seguro)" para continuar.</p>
+    <label class="field" style="margin-top:10px;">ID do cliente OAuth do Google
+      <input type="text" id="gcalClientIdInput" placeholder="xxxxxxxx.apps.googleusercontent.com">
+    </label>
+    <div class="row" style="margin-top:8px;">
+      <span class="kbadge" id="gcalStatusBadge">não conectado</span>
+    </div>
+    <div class="actions" style="margin-top:8px;">
+      <button class="btn danger small" id="gcalDisconnect">Desconectar</button>
+      <button class="btn small" id="gcalPushAll">Enviar todos os plantões agora</button>
+      <button class="btn primary small" id="gcalConnect">Conectar com Google</button>
     </div>
 
     <div class="actions" style="margin-top:18px;">

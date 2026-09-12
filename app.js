@@ -149,6 +149,116 @@
     ghSyncTimer = setTimeout(pushToGithub, 900);
   }
 
+  // ---------- Google Calendar sync ----------
+  const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+  const LS_GCAL_CLIENTID = 'pv_gcal_clientid_v1';
+  const LS_GCAL_CONNECTED = 'pv_gcal_connected_v1';
+  function loadGcalClientId(){ return (localStorage.getItem(LS_GCAL_CLIENTID) || '').trim(); }
+  function saveGcalClientId(v){ if(v) localStorage.setItem(LS_GCAL_CLIENTID, v); else localStorage.removeItem(LS_GCAL_CLIENTID); }
+  function isGcalPreviouslyConnected(){ return localStorage.getItem(LS_GCAL_CONNECTED)==='1'; }
+  let gcalTokenClient = null;
+  let gcalAccessToken = null;
+  let gcalTokenExpiry = 0;
+  let gcalPendingTokenResolvers = [];
+  function setGcalBadge(text){ const b=$('#gcalStatusBadge'); if(b) b.textContent=text; }
+  function ensureGcalTokenClient(){
+    const clientId = loadGcalClientId();
+    if(!clientId || !window.google || !window.google.accounts) return null;
+    if(gcalTokenClient) return gcalTokenClient;
+    gcalTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GCAL_SCOPE,
+      callback: (resp)=>{
+        if(resp.error){
+          setGcalBadge('erro ao conectar');
+          toast('Não foi possível conectar ao Google: '+resp.error);
+          gcalPendingTokenResolvers.forEach(r=>r(null)); gcalPendingTokenResolvers=[];
+          return;
+        }
+        gcalAccessToken = resp.access_token;
+        gcalTokenExpiry = Date.now() + (Number(resp.expires_in||3500) * 1000);
+        localStorage.setItem(LS_GCAL_CONNECTED, '1');
+        setGcalBadge('conectado');
+        gcalPendingTokenResolvers.forEach(r=>r(gcalAccessToken)); gcalPendingTokenResolvers=[];
+      },
+    });
+    return gcalTokenClient;
+  }
+  function connectGoogleCalendar(){
+    const client = ensureGcalTokenClient();
+    if(!client){ toast('Cole o ID do cliente OAuth do Google primeiro.'); return; }
+    client.requestAccessToken({ prompt: 'consent' });
+  }
+  // Resolves a usable access token, or null if not connected / user must reconnect.
+  function getGcalToken(){
+    return new Promise(resolve=>{
+      if(!loadGcalClientId() || !isGcalPreviouslyConnected()){ resolve(null); return; }
+      if(gcalAccessToken && Date.now() < gcalTokenExpiry - 30000){ resolve(gcalAccessToken); return; }
+      const client = ensureGcalTokenClient();
+      if(!client){ resolve(null); return; }
+      gcalPendingTokenResolvers.push(resolve);
+      try{ client.requestAccessToken({ prompt: '' }); }
+      catch(e){ resolve(null); }
+    });
+  }
+  function tz(){ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo'; }catch(e){ return 'America/Sao_Paulo'; } }
+  function shiftEndDateIso(shift){
+    const [y,m,d] = shift.date.split('-').map(Number);
+    const overnight = hoursBetween(shift.startTime, shift.endTime) > 0 && shift.endTime <= shift.startTime;
+    const dt = new Date(y, m-1, d + (overnight?1:0));
+    return iso(dt);
+  }
+  function shiftToGcalEvent(shift){
+    return {
+      summary: `Plantão · ${shift.location||'Sem local'}`,
+      description: `Valor: ${BRL(shift.value)} · Status: ${shift.status==='pago'?'Pago':'Pendente'}${shift.notes?(' · '+shift.notes):''}\n\nCriado pelo app Plantões do Lucas.`,
+      start: { dateTime: `${shift.date}T${shift.startTime||'00:00'}:00`, timeZone: tz() },
+      end: { dateTime: `${shiftEndDateIso(shift)}T${shift.endTime||'00:00'}:00`, timeZone: tz() },
+    };
+  }
+  async function syncShiftToGoogle(shift){
+    if(!shift || !shift.date || !shift.startTime || !shift.endTime) return;
+    const token = await getGcalToken();
+    if(!token) return;
+    const eventBody = shiftToGcalEvent(shift);
+    try{
+      let res;
+      if(shift.gcalEventId){
+        res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${shift.gcalEventId}`, {
+          method:'PATCH', headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body: JSON.stringify(eventBody),
+        });
+        if(res.status===404 || res.status===410){ shift.gcalEventId=null; return syncShiftToGoogle(shift); }
+      } else {
+        res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+          method:'POST', headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body: JSON.stringify(eventBody),
+        });
+      }
+      if(!res.ok) throw new Error('http_'+res.status);
+      const j = await res.json();
+      if(j.id && j.id !== shift.gcalEventId){
+        const i = shifts.findIndex(s=>s.id===shift.id);
+        if(i>=0){ shifts[i].gcalEventId = j.id; saveShifts(shifts); queueSync(); }
+      }
+    }catch(e){ /* silent: calendar sync is a best-effort extra layer */ }
+  }
+  async function deleteShiftFromGoogle(shift){
+    if(!shift || !shift.gcalEventId) return;
+    const token = await getGcalToken();
+    if(!token) return;
+    try{
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${shift.gcalEventId}`, {
+        method:'DELETE', headers:{'Authorization':`Bearer ${token}`},
+      });
+    }catch(e){}
+  }
+  async function pushAllShiftsToGoogle(){
+    const token = await getGcalToken();
+    if(!token){ toast('Conecte-se ao Google primeiro.'); return; }
+    toast(`Enviando ${shifts.length} plantão(ões) ao Google Calendário…`);
+    for(const s of shifts){ await syncShiftToGoogle(s); }
+    toast('Envio concluído.');
+  }
+
   let shifts = loadShifts();
   let rates = loadRates();
   let calMonth = new Date(); calMonth.setDate(1);
@@ -171,21 +281,26 @@
 
   // ---------- shift CRUD ----------
   function addShift(data){
-    shifts.push({id: uid(), createdAt: new Date().toISOString(), ...data});
+    const s = {id: uid(), createdAt: new Date().toISOString(), ...data};
+    shifts.push(s);
     saveShifts(shifts); renderAll(); queueSync();
+    syncShiftToGoogle(s);
   }
   function addShiftsBulk(dataArr){
     const now = new Date().toISOString();
-    dataArr.forEach(data=>shifts.push({id: uid(), createdAt: now, ...data}));
+    const added = dataArr.map(data=>{ const s={id: uid(), createdAt: now, ...data}; shifts.push(s); return s; });
     saveShifts(shifts); renderAll(); queueSync();
+    added.forEach(s=>syncShiftToGoogle(s));
   }
   function updateShift(id, data){
     const i = shifts.findIndex(s=>s.id===id);
-    if(i>=0){ shifts[i] = {...shifts[i], ...data}; saveShifts(shifts); renderAll(); queueSync(); }
+    if(i>=0){ shifts[i] = {...shifts[i], ...data}; saveShifts(shifts); renderAll(); queueSync(); syncShiftToGoogle(shifts[i]); }
   }
   function deleteShift(id){
+    const removed = shifts.find(s=>s.id===id);
     shifts = shifts.filter(s=>s.id!==id);
     saveShifts(shifts); renderAll(); queueSync();
+    if(removed) deleteShiftFromGoogle(removed);
   }
   function saveRates(){ saveRatesArr(rates); renderRates(); queueSync(); }
 
@@ -266,6 +381,8 @@
     $('#apiKeyInput').value = loadApiKey();
     $('#ghTokenInput').value = loadGhToken();
     setSyncBadge(loadGhToken() ? 'configurado' : 'não configurado');
+    $('#gcalClientIdInput').value = loadGcalClientId();
+    setGcalBadge(isGcalPreviouslyConnected() ? 'conectado' : 'não conectado');
     $('#apiModalBg').classList.add('open');
   });
   $('#apiModalClose').addEventListener('click', ()=>$('#apiModalBg').classList.remove('open'));
@@ -296,6 +413,21 @@
     if(!loadGhToken()){ toast('Configure o token do GitHub primeiro.'); return; }
     pullFromGithub(true);
   });
+
+  $('#gcalConnect').addEventListener('click', ()=>{
+    const cid = $('#gcalClientIdInput').value.trim();
+    if(!cid){ toast('Cole o ID do cliente OAuth do Google primeiro.'); return; }
+    saveGcalClientId(cid);
+    gcalTokenClient = null; // rebuild with the (possibly new) client id
+    connectGoogleCalendar();
+  });
+  $('#gcalDisconnect').addEventListener('click', ()=>{
+    localStorage.removeItem(LS_GCAL_CONNECTED);
+    gcalAccessToken = null; gcalTokenExpiry = 0;
+    setGcalBadge('não conectado');
+    toast('Desconectado. Os eventos já criados continuam na sua agenda.');
+  });
+  $('#gcalPushAll').addEventListener('click', ()=>{ pushAllShiftsToGoogle(); });
 
   // ---------- render: plantões table ----------
   function renderShiftsTable(){
@@ -432,8 +564,10 @@
       </div>`).join('') : '<div class="empty">Sem lançamentos neste mês.</div>';
     $$('.mark-paid', wrap).forEach(btn=>btn.addEventListener('click', ()=>{
       const loc = btn.dataset.loc;
-      byLoc[loc].items.forEach(s=>{ const i=shifts.findIndex(x=>x.id===s.id); if(i>=0) shifts[i].status='pago'; });
+      const changed = [];
+      byLoc[loc].items.forEach(s=>{ const i=shifts.findIndex(x=>x.id===s.id); if(i>=0){ shifts[i].status='pago'; changed.push(shifts[i]); } });
       saveShifts(shifts); renderAll(); queueSync();
+      changed.forEach(s=>syncShiftToGoogle(s));
       toast('Marcado como pago.');
     }));
   }
@@ -742,13 +876,15 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
   $('#reviewConfirm').addEventListener('click', ()=>{
     const rows = pendingImport.filter(r=>r.date);
     if(!rows.length){ toast('Nenhum plantão com data válida.'); return; }
-    rows.forEach(r=>{
-      shifts.push({
+    const added = rows.map(r=>{
+      const s = {
         id: uid(), date:r.date, startTime:r.start, endTime:r.end, location:r.location||'Sem local',
         value:r.value||0, status:'pendente', notes:r.notes||'', source:'import', createdAt:new Date().toISOString()
-      });
+      };
+      shifts.push(s); return s;
     });
     saveShifts(shifts);
+    added.forEach(s=>syncShiftToGoogle(s));
     toast(`${rows.length} plantão(ões) importado(s).`);
     pendingImport = []; $('#reviewCard').style.display='none';
     $('#importStatus').textContent=''; selectedImageBlob=null;
