@@ -1,0 +1,595 @@
+(() => {
+  // ---------- helpers ----------
+  const $ = (s, el=document) => el.querySelector(s);
+  const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const BRL = v => (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  function hoursBetween(start,end){
+    if(!start||!end) return 0;
+    const [sh,sm]=start.split(':').map(Number), [eh,em]=end.split(':').map(Number);
+    let a=sh*60+sm, b=eh*60+em; if(b<=a) b+=24*60;
+    return (b-a)/60;
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function fmtDate(d){
+    if(!d) return '—';
+    const [y,m,dd]=d.split('-');
+    return `${dd}/${m}/${y}`;
+  }
+  function toast(msg){
+    const t=$('#toast'); t.textContent=msg; t.classList.add('show');
+    clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), 2800);
+  }
+
+  // ---------- local storage layer ----------
+  const LS = {
+    shifts: 'pv_shifts_v1',
+    rates: 'pv_rates_v1',
+    profile: 'pv_profile_v1',
+    apikey: 'pv_apikey_v1',
+  };
+  function loadShifts(){ try{ return JSON.parse(localStorage.getItem(LS.shifts)||'[]'); }catch(e){ return []; } }
+  function saveShifts(arr){ localStorage.setItem(LS.shifts, JSON.stringify(arr)); }
+  function loadRates(){ try{ return JSON.parse(localStorage.getItem(LS.rates)||'{}'); }catch(e){ return {}; } }
+  function saveRatesArr(obj){ localStorage.setItem(LS.rates, JSON.stringify(obj)); }
+  function loadProfile(){ try{ return JSON.parse(localStorage.getItem(LS.profile)||'{}'); }catch(e){ return {}; } }
+  function saveProfile(obj){ localStorage.setItem(LS.profile, JSON.stringify(obj)); }
+  function loadApiKey(){ return localStorage.getItem(LS.apikey) || ''; }
+  function saveApiKey(k){ if(k) localStorage.setItem(LS.apikey, k); else localStorage.removeItem(LS.apikey); }
+
+  let shifts = loadShifts();
+  let rates = loadRates();
+  let calMonth = new Date(); calMonth.setDate(1);
+  let fatMonth = new Date(); fatMonth.setDate(1);
+  let selectedDay = null;
+  let editingId = null;
+  let pendingImport = [];
+
+  $('#refYear').value = new Date().getFullYear();
+  $('#myName').value = (loadProfile().name || '');
+  $('#myName').addEventListener('change', ()=>{ saveProfile({name: $('#myName').value.trim()}); });
+
+  // ---------- tabs ----------
+  $$('#tabs button').forEach(b=>b.addEventListener('click', ()=>{
+    $$('#tabs button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    $$('.view').forEach(v=>v.classList.remove('active'));
+    $('#view-'+b.dataset.view).classList.add('active');
+  }));
+
+  // ---------- shift CRUD ----------
+  function addShift(data){
+    shifts.push({id: uid(), createdAt: new Date().toISOString(), ...data});
+    saveShifts(shifts); renderAll();
+  }
+  function updateShift(id, data){
+    const i = shifts.findIndex(s=>s.id===id);
+    if(i>=0){ shifts[i] = {...shifts[i], ...data}; saveShifts(shifts); renderAll(); }
+  }
+  function deleteShift(id){
+    shifts = shifts.filter(s=>s.id!==id);
+    saveShifts(shifts); renderAll();
+  }
+  function saveRates(){ saveRatesArr(rates); renderRates(); }
+
+  // ---------- shift modal ----------
+  const seg = $('#fStatusSeg');
+  let fStatus = 'pendente';
+  seg.addEventListener('click', e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    fStatus = b.dataset.v;
+    $$('#fStatusSeg button').forEach(x=>x.classList.toggle('on', x===b));
+  });
+  function openShiftModal(existing, prefDate){
+    editingId = existing ? existing.id : null;
+    $('#shiftModalTitle').textContent = existing ? 'Editar plantão' : 'Novo plantão';
+    $('#fDate').value = existing ? existing.date : (prefDate || iso(new Date()));
+    $('#fLocation').value = existing ? existing.location : '';
+    $('#fStart').value = existing ? existing.startTime : '19:00';
+    $('#fEnd').value = existing ? existing.endTime : '07:00';
+    $('#fValue').value = existing ? existing.value : '';
+    $('#fNotes').value = existing ? (existing.notes||'') : '';
+    fStatus = existing ? existing.status : 'pendente';
+    $$('#fStatusSeg button').forEach(x=>x.classList.toggle('on', x.dataset.v===fStatus));
+    $('#fDelete').style.display = existing ? 'inline-block' : 'none';
+    $('#locOptions').innerHTML = [...new Set(shifts.map(s=>s.location).filter(Boolean))].map(l=>`<option value="${escapeHtml(l)}">`).join('');
+    $('#shiftModalBg').classList.add('open');
+  }
+  function closeShiftModal(){ $('#shiftModalBg').classList.remove('open'); editingId=null; }
+  $('#fCancel').addEventListener('click', closeShiftModal);
+  $('#shiftModalClose').addEventListener('click', closeShiftModal);
+  $('#addShiftBtn').addEventListener('click', ()=>openShiftModal(null));
+  $('#dayAddBtn').addEventListener('click', ()=>openShiftModal(null, selectedDay));
+  $('#fSave').addEventListener('click', ()=>{
+    const data = {
+      date: $('#fDate').value,
+      location: $('#fLocation').value.trim() || 'Sem local',
+      startTime: $('#fStart').value,
+      endTime: $('#fEnd').value,
+      value: parseFloat($('#fValue').value)||0,
+      status: fStatus,
+      notes: $('#fNotes').value.trim(),
+    };
+    if(!data.date){ toast('Informe a data.'); return; }
+    if(editingId) updateShift(editingId, data); else addShift(data);
+    toast('Plantão salvo.');
+    closeShiftModal();
+  });
+  $('#fDelete').addEventListener('click', ()=>{
+    if(editingId){ deleteShift(editingId); toast('Plantão excluído.'); closeShiftModal(); }
+  });
+
+  // ---------- API key modal ----------
+  $('#syncTag').addEventListener('click', ()=>{
+    $('#apiKeyInput').value = loadApiKey();
+    $('#apiModalBg').classList.add('open');
+  });
+  $('#apiModalClose').addEventListener('click', ()=>$('#apiModalBg').classList.remove('open'));
+  $('#apiModalCancel').addEventListener('click', ()=>$('#apiModalBg').classList.remove('open'));
+  $('#apiKeySave').addEventListener('click', ()=>{
+    saveApiKey($('#apiKeyInput').value.trim());
+    toast('Chave salva neste navegador.');
+    $('#apiModalBg').classList.remove('open');
+  });
+  $('#apiKeyClear').addEventListener('click', ()=>{
+    saveApiKey(''); $('#apiKeyInput').value='';
+    toast('Chave removida.');
+  });
+
+  // ---------- render: plantões table ----------
+  function renderShiftsTable(){
+    const tbody = $('#shiftsTbody');
+    const sorted = [...shifts].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+    tbody.innerHTML = sorted.map(s=>`
+      <tr data-id="${s.id}">
+        <td class="mono">${fmtDate(s.date)}</td>
+        <td>${escapeHtml(s.location||'')}</td>
+        <td class="mono">${s.startTime||''}–${s.endTime||''}</td>
+        <td class="mono">${BRL(s.value)}</td>
+        <td><span class="chip ${s.status}">${s.status==='pago'?'Pago':'Pendente'}</span></td>
+        <td><button class="icon-btn edit-shift">✎</button></td>
+      </tr>`).join('');
+    $('#shiftsEmpty').style.display = sorted.length ? 'none':'block';
+    $$('.edit-shift', tbody).forEach(btn=>btn.addEventListener('click', e=>{
+      const id = e.target.closest('tr').dataset.id;
+      openShiftModal(shifts.find(s=>s.id===id));
+    }));
+  }
+
+  // ---------- calendar ----------
+  function renderCalendar(){
+    $('#calLabel').textContent = `${MESES[calMonth.getMonth()]} ${calMonth.getFullYear()}`;
+    const grid = $('#calGrid'); grid.innerHTML='';
+    const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+    const startOffset = first.getDay();
+    const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0).getDate();
+    const todayIso = iso(new Date());
+    const cells = [];
+    for(let i=0;i<startOffset;i++) cells.push(null);
+    for(let d=1; d<=daysInMonth; d++) cells.push(d);
+    while(cells.length % 7 !== 0) cells.push(null);
+    cells.forEach(d=>{
+      const cell = document.createElement('div');
+      if(d===null){ cell.className='day out'; grid.appendChild(cell); return; }
+      const dIso = `${calMonth.getFullYear()}-${pad(calMonth.getMonth()+1)}-${pad(d)}`;
+      const dayShifts = shifts.filter(s=>s.date===dIso);
+      cell.className = 'day' + (dIso===todayIso ? ' today':'');
+      const total = dayShifts.reduce((a,s)=>a+(s.value||0),0);
+      cell.innerHTML = `<div class="d">${d}</div>
+        <div class="marks">${dayShifts.map(s=>`<span class="dot" style="color:${s.status==='pago'?'var(--paid)':'var(--pending)'}"></span>`).join('')}</div>
+        ${total?`<div class="amt">${BRL(total)}</div>`:''}`;
+      cell.addEventListener('click', ()=>{ selectedDay = dIso; showDayPanel(dIso); });
+      grid.appendChild(cell);
+    });
+  }
+  function showDayPanel(dIso){
+    const panel = $('#dayPanel'); panel.style.display='block';
+    $('#dayPanelTitle').textContent = fmtDate(dIso);
+    const list = shifts.filter(s=>s.date===dIso);
+    $('#dayPanelList').innerHTML = list.length ? list.map(s=>`
+      <div class="row between" style="padding:8px 0;border-bottom:1px solid var(--line);" data-id="${s.id}">
+        <div>
+          <div style="font-weight:600;">${escapeHtml(s.location||'')}</div>
+          <div class="mono" style="font-size:12.5px;color:var(--ink-soft);">${s.startTime}–${s.endTime} · ${BRL(s.value)}</div>
+        </div>
+        <span class="chip ${s.status}">${s.status==='pago'?'Pago':'Pendente'}</span>
+        <button class="icon-btn edit-day">✎</button>
+      </div>`).join('') : '<div class="empty">Nenhum plantão nesta data.</div>';
+    $$('.edit-day', $('#dayPanelList')).forEach(btn=>btn.addEventListener('click', e=>{
+      const id = e.target.closest('[data-id]').dataset.id;
+      openShiftModal(shifts.find(s=>s.id===id));
+    }));
+  }
+  $('#calPrev').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()-1); renderCalendar(); });
+  $('#calNext').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()+1); renderCalendar(); });
+
+  // ---------- resumo ----------
+  function renderResumo(){
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    $('#resumoMesLabel').textContent = `· ${MESES[now.getMonth()]} ${now.getFullYear()}`;
+    const monthShifts = shifts.filter(s=>s.date && s.date.startsWith(ym));
+    const total = monthShifts.reduce((a,s)=>a+(s.value||0),0);
+    const pago = monthShifts.filter(s=>s.status==='pago').reduce((a,s)=>a+(s.value||0),0);
+    const pendente = total - pago;
+    const horas = monthShifts.reduce((a,s)=>a+hoursBetween(s.startTime,s.endTime),0);
+    $('#stPlantoes').textContent = monthShifts.length;
+    $('#stHoras').textContent = Math.round(horas);
+    $('#stTotal').textContent = BRL(total);
+    $('#stPendente').textContent = BRL(pendente);
+    $('#stPago').textContent = BRL(pago);
+
+    const upcoming = shifts.filter(s=>s.date >= iso(now)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+    $('#proximosList').innerHTML = upcoming.length ? upcoming.map(s=>`
+      <div class="row between" style="padding:8px 0;border-bottom:1px solid var(--line);">
+        <div><div style="font-weight:600;">${escapeHtml(s.location||'')}</div>
+        <div class="mono" style="font-size:12.5px;color:var(--ink-soft);">${fmtDate(s.date)} · ${s.startTime}–${s.endTime}</div></div>
+        <span class="chip ${s.status}">${s.status==='pago'?'Pago':'Pendente'}</span>
+      </div>`).join('') : '<div class="empty">Nenhum plantão futuro cadastrado.</div>';
+
+    const byLoc = {};
+    monthShifts.forEach(s=>{ byLoc[s.location]= (byLoc[s.location]||0) + (s.value||0); });
+    const maxV = Math.max(1, ...Object.values(byLoc));
+    $('#porLocalList').innerHTML = Object.keys(byLoc).length ? Object.entries(byLoc).sort((a,b)=>b[1]-a[1]).map(([loc,v])=>`
+      <div style="margin-bottom:10px;">
+        <div class="row between" style="margin-bottom:4px;"><span style="font-size:13px;font-weight:600;">${escapeHtml(loc)}</span><span class="mono" style="font-size:12.5px;color:var(--money);">${BRL(v)}</span></div>
+        <div style="height:6px;border-radius:4px;background:var(--paper);overflow:hidden;"><div style="height:100%;width:${(v/maxV*100).toFixed(0)}%;background:var(--accent);"></div></div>
+      </div>`).join('') : '<div class="empty">Sem plantões este mês.</div>';
+  }
+
+  // ---------- faturamento ----------
+  function renderFaturamento(){
+    $('#fatLabel').textContent = `${MESES[fatMonth.getMonth()]} ${fatMonth.getFullYear()}`;
+    const ym = `${fatMonth.getFullYear()}-${pad(fatMonth.getMonth()+1)}`;
+    const monthShifts = shifts.filter(s=>s.date && s.date.startsWith(ym));
+    const total = monthShifts.reduce((a,s)=>a+(s.value||0),0);
+    const pago = monthShifts.filter(s=>s.status==='pago').reduce((a,s)=>a+(s.value||0),0);
+    $('#fatTotal').textContent = BRL(total);
+    $('#fatPago').textContent = BRL(pago);
+    $('#fatPendente').textContent = BRL(total-pago);
+
+    const byLoc = {};
+    monthShifts.forEach(s=>{
+      byLoc[s.location] = byLoc[s.location] || {items:[], total:0, pago:0};
+      byLoc[s.location].items.push(s);
+      byLoc[s.location].total += (s.value||0);
+      if(s.status==='pago') byLoc[s.location].pago += (s.value||0);
+    });
+    const wrap = $('#fatByLocation');
+    wrap.innerHTML = Object.keys(byLoc).length ? Object.entries(byLoc).map(([loc,info])=>`
+      <div class="card" style="background:var(--paper);box-shadow:none;padding:14px;margin-bottom:10px;">
+        <div class="row between">
+          <div><strong>${escapeHtml(loc)}</strong> <span class="sub" style="color:var(--ink-faint);font-size:12.5px;">${info.items.length} plantão(ões)</span></div>
+          <div class="mono">${BRL(info.total)}</div>
+        </div>
+        <div class="row between" style="margin-top:6px;">
+          <span style="font-size:12.5px;color:var(--ink-soft);">Recebido ${BRL(info.pago)} · Pendente ${BRL(info.total-info.pago)}</span>
+          <button class="btn small mark-paid" data-loc="${escapeHtml(loc)}">Marcar tudo como pago</button>
+        </div>
+      </div>`).join('') : '<div class="empty">Sem lançamentos neste mês.</div>';
+    $$('.mark-paid', wrap).forEach(btn=>btn.addEventListener('click', ()=>{
+      const loc = btn.dataset.loc;
+      byLoc[loc].items.forEach(s=>{ const i=shifts.findIndex(x=>x.id===s.id); if(i>=0) shifts[i].status='pago'; });
+      saveShifts(shifts); renderAll();
+      toast('Marcado como pago.');
+    }));
+  }
+  $('#fatPrev').addEventListener('click', ()=>{ fatMonth.setMonth(fatMonth.getMonth()-1); renderFaturamento(); });
+  $('#fatNext').addEventListener('click', ()=>{ fatMonth.setMonth(fatMonth.getMonth()+1); renderFaturamento(); });
+
+  $('#genReceiptBtn').addEventListener('click', ()=>{
+    const ym = `${fatMonth.getFullYear()}-${pad(fatMonth.getMonth()+1)}`;
+    const monthShifts = shifts.filter(s=>s.date && s.date.startsWith(ym)).sort((a,b)=>a.date.localeCompare(b.date));
+    if(!monthShifts.length){ toast('Nenhum plantão neste mês.'); return; }
+    if(!window.jspdf){ toast('Biblioteca de PDF não carregou.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text('Relatório de Plantões', 14, 18);
+    doc.setFontSize(11); doc.setFont('helvetica','normal');
+    doc.text(`${MESES[fatMonth.getMonth()]} de ${fatMonth.getFullYear()}`, 14, 26);
+    let y = 38;
+    doc.setFont('helvetica','bold');
+    doc.text('Data', 14, y); doc.text('Local', 38, y); doc.text('Horário', 118, y); doc.text('Valor', 150, y); doc.text('Status', 172, y);
+    doc.setFont('helvetica','normal'); y+=6;
+    doc.setLineWidth(0.2); doc.line(14,y-4,196,y-4);
+    let total=0, pago=0;
+    monthShifts.forEach(s=>{
+      if(y>270){ doc.addPage(); y=20; }
+      doc.text(fmtDate(s.date), 14, y);
+      doc.text(String(s.location||'').slice(0,38), 38, y);
+      doc.text(`${s.startTime||''}-${s.endTime||''}`, 118, y);
+      doc.text(BRL(s.value), 150, y);
+      doc.text(s.status==='pago'?'Pago':'Pendente', 172, y);
+      total += (s.value||0); if(s.status==='pago') pago += (s.value||0);
+      y+=7;
+    });
+    y+=4; doc.line(14,y-4,196,y-4);
+    doc.setFont('helvetica','bold');
+    doc.text(`Total: ${BRL(total)}`, 14, y+4);
+    doc.text(`Recebido: ${BRL(pago)}   Pendente: ${BRL(total-pago)}`, 14, y+11);
+    doc.save(`plantoes-${ym}.pdf`);
+    toast('Recibo salvo.');
+  });
+
+  // ---------- rates config ----------
+  function renderRates(){
+    const wrap = $('#ratesList');
+    const entries = Object.entries(rates);
+    wrap.innerHTML = entries.length ? entries.map(([loc,cfg])=>`
+      <div class="locrow" data-loc="${escapeHtml(loc)}">
+        <input type="text" class="rate-loc" value="${escapeHtml(loc)}">
+        <select class="rate-mode"><option value="fixed" ${cfg.mode==='fixed'?'selected':''}>Fixo</option><option value="hourly" ${cfg.mode==='hourly'?'selected':''}>Por hora</option></select>
+        <input type="number" class="rate-value mono" value="${cfg.value||0}" step="0.01">
+        <button class="icon-btn rate-del">✕</button>
+      </div>`).join('') : '<div class="empty">Nenhum valor padrão configurado.</div>';
+    $$('.locrow', wrap).forEach(row=>{
+      const origLoc = row.dataset.loc;
+      row.querySelector('.rate-del').addEventListener('click', ()=>{ delete rates[origLoc]; saveRates(); });
+      const commit = ()=>{
+        const newLoc = row.querySelector('.rate-loc').value.trim();
+        const mode = row.querySelector('.rate-mode').value;
+        const value = parseFloat(row.querySelector('.rate-value').value)||0;
+        if(!newLoc) return;
+        if(newLoc !== origLoc) delete rates[origLoc];
+        rates[newLoc] = {mode, value};
+        saveRates();
+      };
+      row.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', commit));
+    });
+  }
+  $('#addRateBtn').addEventListener('click', ()=>{
+    let n=1, name='Novo local';
+    while(rates[name]) { name = `Novo local ${++n}`; }
+    rates[name] = {mode:'fixed', value:0};
+    saveRates();
+  });
+
+  // ---------- export / import backup ----------
+  $('#exportBtn').addEventListener('click', ()=>{
+    const data = { shifts, rates, profile: loadProfile(), exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `plantao-vivo-backup-${iso(new Date())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    toast('Backup exportado.');
+  });
+  $('#importBtn').addEventListener('click', ()=>$('#importFile').click());
+  $('#importFile').addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      try{
+        const data = JSON.parse(ev.target.result);
+        if(!Array.isArray(data.shifts)) throw new Error('formato inválido');
+        shifts = data.shifts; saveShifts(shifts);
+        rates = data.rates || {}; saveRatesArr(rates);
+        if(data.profile) saveProfile(data.profile);
+        $('#myName').value = (data.profile && data.profile.name) || '';
+        renderAll(); renderRates();
+        toast(`Backup importado: ${shifts.length} plantão(ões).`);
+      }catch(err){ toast('Arquivo de backup inválido.'); }
+    };
+    reader.readAsText(f);
+    e.target.value='';
+  });
+
+  // ---------- image resize (keeps API cost/time down) ----------
+  function resizeImage(file, maxDim=1568, quality=0.85){
+    return new Promise((resolve,reject)=>{
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = ()=>{
+        let {width:w, height:h} = img;
+        if(w>maxDim || h>maxDim){
+          const scale = maxDim / Math.max(w,h);
+          w = Math.round(w*scale); h = Math.round(h*scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        canvas.toBlob(blob=>{ URL.revokeObjectURL(url); resolve(blob); }, 'image/jpeg', quality);
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Não foi possível abrir a imagem.')); };
+      img.src = url;
+    });
+  }
+  function blobToBase64(blob){
+    return new Promise((resolve,reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ---------- Claude API call ----------
+  async function callClaude({prompt, imageBlob}){
+    const apiKey = loadApiKey();
+    if(!apiKey) { const e = new Error('Configure sua chave de API primeiro (⚙ no topo).'); e.code='no_key'; throw e; }
+    const content = [];
+    if(imageBlob){
+      const b64 = await blobToBase64(imageBlob);
+      content.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:b64 } });
+    }
+    content.push({ type:'text', text: prompt });
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body: JSON.stringify({
+        model:'claude-sonnet-5',
+        max_tokens: 3000,
+        messages:[{ role:'user', content }],
+      }),
+    });
+    if(!res.ok){
+      let msg = `Erro ${res.status}`;
+      try{ const j = await res.json(); msg = (j.error && j.error.message) || msg; }catch(e){}
+      const e = new Error(msg); e.code = res.status===401?'auth':(res.status===429?'rate_limited':'http_error');
+      throw e;
+    }
+    const data = await res.json();
+    const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+    return text;
+  }
+  function extractJson(text){
+    let s = text.trim();
+    const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if(fence) s = fence[1].trim();
+    try{ return JSON.parse(s); }catch(e){}
+    const start = Math.min(...['[','{'].map(c=>{ const i=s.indexOf(c); return i<0?Infinity:i; }));
+    const endBrace = s.lastIndexOf('}');
+    const endBracket = s.lastIndexOf(']');
+    const end = Math.max(endBrace, endBracket);
+    if(isFinite(start) && end>start){
+      try{ return JSON.parse(s.slice(start, end+1)); }catch(e){}
+    }
+    throw new Error('invalid_json');
+  }
+
+  // ---------- importar escala ----------
+  let selectedImageBlob = null;
+  $('#uploadBox').addEventListener('click', ()=>$('#fileInput').click());
+  $('#fileInput').addEventListener('change', async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    $('#uploadBoxContent').textContent = 'Preparando imagem…';
+    try{
+      selectedImageBlob = await resizeImage(f);
+      const url = URL.createObjectURL(selectedImageBlob);
+      $('#uploadBoxContent').innerHTML = `<img src="${url}"><div>${escapeHtml(f.name)}</div>`;
+    }catch(err){
+      $('#uploadBoxContent').textContent = '📷 Toque para escolher uma imagem da escala';
+      toast('Não foi possível ler essa imagem.');
+    }
+  });
+
+  $('#readScaleBtn').addEventListener('click', async ()=>{
+    const refYear = parseInt($('#refYear').value) || new Date().getFullYear();
+    const pastedText = $('#pasteText').value.trim();
+    const myName = $('#myName').value.trim();
+    if(!selectedImageBlob && !pastedText){ toast('Envie uma imagem ou cole o texto da escala.'); return; }
+    if(!myName){ toast('Informe seu nome como aparece na escala.'); return; }
+
+    const prompt = `Você extrai os plantões de UMA pessoa específica dentro de uma escala médica.
+A escala pode ser: (a) pessoal, com um plantão por linha; ou (b) uma grade de equipe/serviço, com VÁRIOS nomes de médicos por dia, organizada em colunas de dias/datas e blocos ou seções por turno (ex.: um cabeçalho único da tabela como "Noturno 19:00 as 07:00", ou seções separadas como "DIURNO 07X19h" e "NOTURNO 19X07h"). Categorias dentro do dia como "COM"/"SUS" ou nomes de setor não mudam o horário do turno — o horário vem do cabeçalho/seção da tabela, não de cada linha.
+
+Pessoa a localizar (comparação sem diferenciar maiúsculas/acentos, aceitando nome parcial): "${myName}"
+
+Tarefa: encontre TODAS as datas em que essa pessoa aparece em QUALQUER lista/coluna de nomes da escala. Para cada ocorrência, extraia:
+- date (AAAA-MM-DD) — a data daquela coluna/dia. Datas podem vir parciais (ex.: "31/ago", "7 -", "05/set (Sáb)"): complete o mês faltante deduzindo pela sequência do calendário e o ano usando o mês/ano indicado no título da escala (ex.: "SETEMBRO / 2026"); se o título não indicar ano, use ${refYear}.
+- start / end (HH:MM, 24h) — o horário do turno daquele bloco/seção/cabeçalho (ex.: "19:00"/"07:00" para "Noturno 19:00 as 07:00", ou "07:00"/"19:00" para "DIURNO 07X19h").
+- location — nome do serviço/unidade que aparece no título da escala (ex.: "Unidade Clínica de Emergência", "Emergência/Incor").
+- notes — deixe em branco, a menos que haja uma marcação específica ao lado do nome (ex.: "**") que valha a pena registrar.
+
+Se o nome não aparecer em nenhuma data, responda com um array vazio [].
+Responda APENAS com um array JSON válido, sem nenhum texto antes ou depois, no formato exato:
+[{"date":"2026-09-12","start":"19:00","end":"07:00","location":"Emergência","notes":""}]
+${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala está na imagem enviada.'}`;
+
+    const statusEl = $('#importStatus');
+    statusEl.innerHTML = '<span class="spin"></span> Lendo escala…';
+    $('#readScaleBtn').disabled = true;
+    try{
+      const text = await callClaude({ prompt, imageBlob: selectedImageBlob });
+      const data = extractJson(text);
+      const arr = Array.isArray(data) ? data : (Array.isArray(data.plantoes) ? data.plantoes : []);
+      if(!arr.length){ statusEl.textContent = `Não encontrei "${myName}" nesta escala. Confira a grafia do nome ou tente uma imagem mais nítida.`; return; }
+      pendingImport = arr.map(x=>({
+        date: x.date||'', start: x.start||x.startTime||'19:00', end: x.end||x.endTime||'07:00',
+        location: x.location||'', notes: x.notes||'', include:true
+      }));
+      applyDefaultRates();
+      renderReview();
+      statusEl.textContent = `${pendingImport.length} plantão(ões) encontrado(s). Revise abaixo antes de importar.`;
+    }catch(e){
+      if(e.code==='no_key') statusEl.textContent = 'Configure sua chave de API da Anthropic (⚙ no topo) para ler escalas.';
+      else if(e.code==='auth') statusEl.textContent = 'Chave de API inválida ou sem permissão. Confira em ⚙ no topo.';
+      else if(e.code==='rate_limited') statusEl.textContent = 'Muitas tentativas seguidas — aguarde um pouco e tente novamente.';
+      else if(e.message==='invalid_json') statusEl.textContent = 'Não consegui interpretar a resposta. Tente novamente ou uma imagem mais nítida.';
+      else statusEl.textContent = 'Erro ao ler escala: ' + e.message;
+    }finally{
+      $('#readScaleBtn').disabled = false;
+    }
+  });
+
+  function applyDefaultRates(){
+    pendingImport.forEach(row=>{
+      const cfg = rates[row.location];
+      if(cfg){
+        row.value = cfg.mode==='fixed' ? cfg.value : Math.round(cfg.value * hoursBetween(row.start,row.end) * 100)/100;
+      } else row.value = 0;
+    });
+  }
+
+  function renderReview(){
+    $('#reviewCard').style.display = 'block';
+    const wrap = $('#reviewList');
+    wrap.innerHTML = `<div class="import-row header"><div>Data</div><div>Início</div><div>Fim</div><div>Local</div><div>Valor</div><div></div></div>` +
+      pendingImport.map((row,i)=>`
+      <div class="import-row" data-i="${i}">
+        <input type="date" class="ri-date" value="${row.date}">
+        <input type="time" class="ri-start" value="${row.start}">
+        <input type="time" class="ri-end" value="${row.end}">
+        <input type="text" class="ri-loc" value="${escapeHtml(row.location)}">
+        <input type="number" class="ri-value mono" value="${row.value||0}" step="0.01">
+        <button class="icon-btn ri-del" title="Remover">✕</button>
+      </div>`).join('');
+    $$('.import-row[data-i]', wrap).forEach(rowEl=>{
+      const i = parseInt(rowEl.dataset.i);
+      rowEl.querySelector('.ri-date').addEventListener('change', e=>pendingImport[i].date=e.target.value);
+      rowEl.querySelector('.ri-start').addEventListener('change', e=>{pendingImport[i].start=e.target.value; recalcRow(i);});
+      rowEl.querySelector('.ri-end').addEventListener('change', e=>{pendingImport[i].end=e.target.value; recalcRow(i);});
+      rowEl.querySelector('.ri-loc').addEventListener('change', e=>{pendingImport[i].location=e.target.value; recalcRow(i);});
+      rowEl.querySelector('.ri-value').addEventListener('change', e=>pendingImport[i].value=parseFloat(e.target.value)||0);
+      rowEl.querySelector('.ri-del').addEventListener('click', ()=>{ pendingImport.splice(i,1); renderReview(); });
+    });
+  }
+  function recalcRow(i){
+    const row = pendingImport[i];
+    const cfg = rates[row.location];
+    if(cfg) row.value = cfg.mode==='fixed' ? cfg.value : Math.round(cfg.value*hoursBetween(row.start,row.end)*100)/100;
+  }
+
+  $('#reviewCancel').addEventListener('click', ()=>{ pendingImport=[]; $('#reviewCard').style.display='none'; });
+  $('#reviewConfirm').addEventListener('click', ()=>{
+    const rows = pendingImport.filter(r=>r.date);
+    if(!rows.length){ toast('Nenhum plantão com data válida.'); return; }
+    rows.forEach(r=>{
+      shifts.push({
+        id: uid(), date:r.date, startTime:r.start, endTime:r.end, location:r.location||'Sem local',
+        value:r.value||0, status:'pendente', notes:r.notes||'', source:'import', createdAt:new Date().toISOString()
+      });
+    });
+    saveShifts(shifts);
+    toast(`${rows.length} plantão(ões) importado(s).`);
+    pendingImport = []; $('#reviewCard').style.display='none';
+    $('#importStatus').textContent=''; selectedImageBlob=null;
+    $('#uploadBoxContent').textContent='📷 Toque para escolher uma imagem da escala';
+    $('#fileInput').value=''; $('#pasteText').value='';
+    $$('#tabs button').forEach(x=>x.classList.remove('active'));
+    $('#tabs button[data-view="plantoes"]').classList.add('active');
+    $$('.view').forEach(v=>v.classList.remove('active'));
+    $('#view-plantoes').classList.add('active');
+    renderAll();
+  });
+
+  // ---------- global render ----------
+  function renderAll(){
+    renderShiftsTable();
+    renderCalendar();
+    if(selectedDay) showDayPanel(selectedDay);
+    renderResumo();
+    renderFaturamento();
+  }
+  renderAll(); renderRates();
+})();

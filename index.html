@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plantão Vivo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F6F6B'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='white' text-anchor='middle'%3EPV%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#EEF3F1; --surface:#FFFFFF; --ink:#16232B; --ink-soft:#4B5B63; --ink-faint:#7C8B87;
+    --line:#D7E1DD; --accent:#2F6F6B; --accent-strong:#1F4D49; --accent-soft:#DCEAE8;
+    --money:#B76A1E; --money-soft:#F3E3CC; --pending:#A8423F; --pending-soft:#F5DEDC;
+    --paid:#2A7A57; --paid-soft:#DBEEE3; --shadow:0 1px 2px rgba(22,35,43,.06),0 6px 20px rgba(22,35,43,.08);
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0F1720; --surface:#182430; --ink:#E7EDEB; --ink-soft:#A7B7B3; --ink-faint:#71827D;
+      --line:#2B3D46; --accent:#5FB6AE; --accent-strong:#8AD2CB; --accent-soft:#1C3733;
+      --money:#DCA35C; --money-soft:#3A2C18; --pending:#E08487; --pending-soft:#3A2224;
+      --paid:#6FCB9F; --paid-soft:#173229; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0F1720; --surface:#182430; --ink:#E7EDEB; --ink-soft:#A7B7B3; --ink-faint:#71827D;
+    --line:#2B3D46; --accent:#5FB6AE; --accent-strong:#8AD2CB; --accent-soft:#1C3733;
+    --money:#DCA35C; --money-soft:#3A2C18; --pending:#E08487; --pending-soft:#3A2224;
+    --paid:#6FCB9F; --paid-soft:#173229; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased;margin:0;}
+  h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin:0;}
+  .num,input,select,textarea,button{font-family:"IBM Plex Sans",system-ui,sans-serif;}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;}
+  a{color:var(--accent-strong);}
+  img{max-width:100%;}
+
+  .app{max-width:980px;margin:0 auto;padding:0 16px 80px;}
+  header.top{position:sticky;top:0;z-index:20;background:var(--paper);padding:16px 16px 0;margin:0 -16px;}
+  .brand{display:flex;align-items:baseline;gap:10px;padding:8px 0 14px;}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-weight:700;font-size:16px;flex:none;}
+  .brand h1{font-size:22px;}
+  .brand .tag{color:var(--ink-faint);font-size:12.5px;margin-left:auto;text-align:right;cursor:pointer;}
+
+  nav.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;}
+  nav.tabs::-webkit-scrollbar{display:none;}
+  nav.tabs button{flex:none;border:none;background:transparent;color:var(--ink-soft);font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;}
+  nav.tabs button.active{background:var(--accent);color:#fff;}
+  nav.tabs button:not(.active):hover{background:var(--accent-soft);color:var(--accent-strong);}
+
+  main{padding-top:18px;display:flex;flex-direction:column;gap:18px;}
+  .view{display:none;flex-direction:column;gap:18px;}
+  .view.active{display:flex;}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .card h2{font-size:17px;margin-bottom:12px;}
+  .card h2 .sub{font-family:"IBM Plex Sans";font-weight:500;font-size:12.5px;color:var(--ink-faint);margin-left:8px;}
+
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;}
+  .stat{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper);}
+  .stat .label{font-size:11.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+  .stat .value{font-size:24px;font-weight:600;margin-top:4px;}
+  .stat .value.money{color:var(--money);}
+  .stat .value.pending{color:var(--pending);}
+  .stat .value.paid{color:var(--paid);}
+
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .row.between{justify-content:space-between;}
+  .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:10px;cursor:pointer;transition:transform .08s, background .15s;}
+  .btn:active{transform:scale(.97);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-strong);}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--accent-strong);padding:9px 8px;}
+  .btn.danger{color:var(--pending);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.small{padding:6px 10px;font-size:12.5px;border-radius:8px;}
+  .icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;}
+  .icon-btn:hover{background:var(--accent-soft);color:var(--accent-strong);}
+
+  input[type=text],input[type=number],input[type=date],input[type=time],input[type=password],select,textarea{
+    width:100%;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:9px;padding:9px 11px;font-size:14px;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+  label.field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+  .field-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  @media(max-width:520px){.field-grid{grid-template-columns:1fr;}}
+
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;letter-spacing:.02em;}
+  .chip.pendente{background:var(--pending-soft);color:var(--pending);}
+  .chip.pago{background:var(--paid-soft);color:var(--paid);}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .cal-head h2{font-size:19px;}
+  .weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:6px;text-align:center;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .day{aspect-ratio:1/.92;border-radius:10px;border:1px solid var(--line);background:var(--paper);padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:4px;position:relative;min-height:54px;}
+  .day.out{opacity:.35;}
+  .day.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
+  .day:hover{background:var(--accent-soft);}
+  .day .d{font-size:12px;font-weight:600;color:var(--ink-soft);}
+  .day .marks{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto;}
+  .day .marks .dot{width:6px;height:6px;border-radius:50%;}
+  .day .amt{font-size:10px;color:var(--money);font-weight:600;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);font-weight:700;padding:0 10px 8px;border-bottom:1px solid var(--line);}
+  tbody td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--paper);}
+  .table-wrap{overflow-x:auto;}
+  .empty{color:var(--ink-faint);font-size:13.5px;padding:20px 4px;text-align:center;}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(10,16,20,.5);display:none;align-items:flex-end;justify-content:center;z-index:100;padding:0;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--surface);border-radius:18px 18px 0 0;padding:20px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow);position:relative;}
+  @media(min-width:640px){.modal-bg{align-items:center;}.modal{border-radius:18px;margin-bottom:0;}}
+  .modal h3{font-size:18px;margin-bottom:14px;}
+  .modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .close-x{position:absolute;top:14px;right:14px;}
+
+  .upload-box{border:1.5px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--ink-faint);font-size:13.5px;cursor:pointer;transition:border-color .15s,background .15s;}
+  .upload-box:hover{border-color:var(--accent);background:var(--accent-soft);}
+  .upload-box img{max-height:220px;border-radius:8px;margin-bottom:8px;}
+  .divider-or{display:flex;align-items:center;gap:10px;color:var(--ink-faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;margin:14px 0;}
+  .divider-or::before,.divider-or::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:11px 18px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:var(--shadow);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+
+  .locrow{display:grid;grid-template-columns:1fr 110px 110px 34px;gap:8px;align-items:center;margin-bottom:8px;}
+  @media(max-width:520px){.locrow{grid-template-columns:1fr 90px 90px 30px;}}
+
+  .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+  .seg button{flex:1;border:none;background:var(--surface);color:var(--ink-soft);font-size:12.5px;font-weight:600;padding:8px;cursor:pointer;}
+  .seg button.on{background:var(--accent);color:#fff;}
+
+  .import-row{display:grid;grid-template-columns:100px 84px 84px 1fr 90px 30px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);}
+  .import-row input{padding:6px 8px;font-size:12.5px;}
+  .import-row.header{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;font-weight:700;border-bottom:1px solid var(--line);}
+  @media(max-width:640px){.import-row{grid-template-columns:1fr;gap:4px;padding:10px 0;}}
+
+  .note{font-size:12.5px;color:var(--ink-faint);line-height:1.5;}
+  .kbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">PV</div>
+      <h1>Plantão Vivo</h1>
+      <div class="tag" id="syncTag" title="Configurar chave de API">⚙ configurar</div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="resumo" class="active">Resumo</button>
+      <button data-view="calendario">Calendário</button>
+      <button data-view="plantoes">Plantões</button>
+      <button data-view="importar">Importar escala</button>
+      <button data-view="faturamento">Faturamento</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="view active" id="view-resumo">
+      <div class="card">
+        <h2>Este mês <span class="sub" id="resumoMesLabel"></span></h2>
+        <div class="grid-stats">
+          <div class="stat"><div class="label">Plantões</div><div class="value num" id="stPlantoes">0</div></div>
+          <div class="stat"><div class="label">Horas</div><div class="value num" id="stHoras">0</div></div>
+          <div class="stat"><div class="label">A receber</div><div class="value money num" id="stTotal">R$ 0</div></div>
+          <div class="stat"><div class="label">Pendente</div><div class="value pending num" id="stPendente">R$ 0</div></div>
+          <div class="stat"><div class="label">Recebido</div><div class="value paid num" id="stPago">R$ 0</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Próximos plantões</h2>
+        <div id="proximosList"></div>
+      </div>
+      <div class="card">
+        <h2>Por local <span class="sub">mês atual</span></h2>
+        <div id="porLocalList"></div>
+      </div>
+      <div class="card">
+        <h2>Seus dados <span class="sub">este app guarda tudo só neste navegador</span></h2>
+        <p class="note">Sem servidor próprio, os plantões ficam salvos no armazenamento deste navegador/aparelho. Para levar os dados para outro computador ou celular, exporte um backup aqui e importe lá.</p>
+        <div class="row" style="margin-top:10px;">
+          <button class="btn" id="exportBtn">Exportar backup (.json)</button>
+          <button class="btn" id="importBtn">Importar backup</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none;">
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-calendario">
+      <div class="card">
+        <div class="cal-head">
+          <button class="icon-btn" id="calPrev">‹</button>
+          <h2 id="calLabel">—</h2>
+          <button class="icon-btn" id="calNext">›</button>
+        </div>
+        <div class="weekdays"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+      <div class="card" id="dayPanel" style="display:none;">
+        <div class="row between"><h2 id="dayPanelTitle"></h2><button class="btn small primary" id="dayAddBtn">+ Adicionar plantão</button></div>
+        <div id="dayPanelList"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-plantoes">
+      <div class="card">
+        <div class="row between" style="margin-bottom:14px;">
+          <h2 style="margin-bottom:0;">Todos os plantões</h2>
+          <button class="btn primary small" id="addShiftBtn">+ Novo plantão</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Local</th><th>Horário</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+            <tbody id="shiftsTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="shiftsEmpty" style="display:none;">Nenhum plantão cadastrado ainda. Adicione manualmente ou importe uma escala.</div>
+      </div>
+    </section>
+
+    <section class="view" id="view-importar">
+      <div class="card">
+        <h2>Importar escala</h2>
+        <p class="note" style="margin-bottom:14px;">Envie uma foto ou print da escala (JPG, PNG, WEBP) — inclusive escalas de equipe com vários nomes por dia. A leitura usa a Claude API diretamente com a sua chave (veja "configurar" no topo).</p>
+        <label class="field" style="margin-bottom:14px;">Seu nome como aparece na escala
+          <input type="text" id="myName" placeholder="Ex: Herico">
+        </label>
+        <div class="upload-box" id="uploadBox">
+          <div id="uploadBoxContent">📷 Toque para escolher uma imagem da escala</div>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" style="display:none;">
+        <div class="divider-or">ou cole o texto da escala</div>
+        <textarea id="pasteText" rows="4" placeholder="Ex: 12/09 SEG UTI 19h-07h&#10;14/09 QUA PS 07h-19h"></textarea>
+        <div class="row" style="margin-top:12px;">
+          <label class="field" style="max-width:140px;">Ano de referência
+            <input type="number" id="refYear" class="mono">
+          </label>
+          <button class="btn primary" id="readScaleBtn" style="margin-top:19px;">Ler escala</button>
+        </div>
+        <div id="importStatus" style="margin-top:10px;font-size:13px;color:var(--ink-soft);"></div>
+      </div>
+
+      <div class="card" id="reviewCard" style="display:none;">
+        <div class="row between" style="margin-bottom:10px;"><h2 style="margin-bottom:0;">Revisar plantões encontrados</h2></div>
+        <div id="reviewList"></div>
+        <div class="row" style="margin-top:14px;justify-content:flex-end;">
+          <button class="btn" id="reviewCancel">Cancelar</button>
+          <button class="btn primary" id="reviewConfirm">Importar selecionados</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-faturamento">
+      <div class="card">
+        <div class="cal-head" style="margin-bottom:14px;">
+          <button class="icon-btn" id="fatPrev">‹</button>
+          <h2 id="fatLabel">—</h2>
+          <button class="icon-btn" id="fatNext">›</button>
+        </div>
+        <div class="grid-stats" style="margin-bottom:16px;">
+          <div class="stat"><div class="label">Total do mês</div><div class="value money num" id="fatTotal">R$ 0</div></div>
+          <div class="stat"><div class="label">Recebido</div><div class="value paid num" id="fatPago">R$ 0</div></div>
+          <div class="stat"><div class="label">Pendente</div><div class="value pending num" id="fatPendente">R$ 0</div></div>
+        </div>
+        <div id="fatByLocation"></div>
+        <div class="row" style="margin-top:16px;">
+          <button class="btn primary" id="genReceiptBtn">Gerar recibo em PDF</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Valores padrão por local <span class="sub">usados ao importar escalas</span></h2>
+        <div id="ratesList"></div>
+        <button class="btn small" id="addRateBtn" style="margin-top:6px;">+ Adicionar local</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-bg" id="shiftModalBg">
+  <div class="modal">
+    <button class="icon-btn close-x" id="shiftModalClose">✕</button>
+    <h3 id="shiftModalTitle">Novo plantão</h3>
+    <div class="field-grid">
+      <label class="field">Data<input type="date" id="fDate"></label>
+      <label class="field">Local<input type="text" id="fLocation" list="locOptions" placeholder="Ex: UTI Hospital São Lucas"></label>
+      <datalist id="locOptions"></datalist>
+      <label class="field">Início<input type="time" id="fStart" value="19:00"></label>
+      <label class="field">Término<input type="time" id="fEnd" value="07:00"></label>
+      <label class="field">Valor (R$)<input type="number" id="fValue" step="0.01" min="0"></label>
+      <label class="field">Status
+        <div class="seg" id="fStatusSeg">
+          <button data-v="pendente" type="button">Pendente</button>
+          <button data-v="pago" type="button">Pago</button>
+        </div>
+      </label>
+    </div>
+    <label class="field" style="margin-top:12px;">Observações<textarea id="fNotes" rows="2"></textarea></label>
+    <div class="actions">
+      <button class="btn danger" id="fDelete" style="display:none;">Excluir</button>
+      <button class="btn" id="fCancel">Cancelar</button>
+      <button class="btn primary" id="fSave">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="apiModalBg">
+  <div class="modal">
+    <button class="icon-btn close-x" id="apiModalClose">✕</button>
+    <h3>Configurar leitura de escalas</h3>
+    <p class="note">Cole aqui sua chave de API da Anthropic (criada em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>). Ela fica salva só neste navegador (localStorage), nunca é enviada a mim nem a mais ninguém além da própria Anthropic — é usada apenas para ler suas fotos de escala. Cada leitura custa poucos centavos, cobrados diretamente na sua conta Anthropic.</p>
+    <label class="field" style="margin-top:12px;">Chave de API (começa com <span class="mono">sk-ant-</span>)
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+    </label>
+    <div class="actions">
+      <button class="btn danger" id="apiKeyClear">Remover chave</button>
+      <button class="btn" id="apiModalCancel">Cancelar</button>
+      <button class="btn primary" id="apiKeySave">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
