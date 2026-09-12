@@ -1,18 +1,6 @@
 {
-  "shifts": [
-    {
-      "id": "mtyx3k37qfbj6a",
-      "createdAt": "2026-09-12T21:49:01.171Z",
-      "date": "2026-09-12",
-      "location": "incor",
-      "startTime": "19:00",
-      "endTime": "07:00",
-      "value": 0,
-      "status": "pendente",
-      "notes": ""
-    }
-  ],
+  "shifts": [],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-12T21:49:02.078Z"
+  "updatedAt": "2026-09-12T21:51:17.655Z"
 }
