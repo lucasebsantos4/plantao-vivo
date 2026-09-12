@@ -46,7 +46,16 @@
   const GH_PATH = 'data/plantoes.json';
   const GH_API = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
   const LS_GHTOKEN = 'pv_ghtoken_v1';
-  function loadGhToken(){ return localStorage.getItem(LS_GHTOKEN) || ''; }
+  function loadGhToken(){ return (localStorage.getItem(LS_GHTOKEN) || '').trim(); }
+  function friendlyGhError(err){
+    const m = String(err.message||'');
+    if(err.status===401) return 'Token inválido ou incompleto (401) — gere um novo em github.com/settings/personal-access-tokens/new e cole com cuidado, sem espaços extras.';
+    if(err.status===403) return 'Token sem permissão de escrita (403) — edite o token e marque "Contents: Read and write" para o repositório plantao-vivo.';
+    if(err.status===404) return 'Repositório não encontrado (404) — confira se o token dá acesso ao repositório plantao-vivo.';
+    if(err.status===409) return 'Conflito ao salvar — tente "Sincronizar agora" e depois salve de novo.';
+    if(m.includes('Failed to fetch')) return 'Não foi possível conectar ao GitHub agora. Verifique sua internet e tente de novo.';
+    return m || 'Erro desconhecido ao sincronizar.';
+  }
   function saveGhToken(t){ if(t) localStorage.setItem(LS_GHTOKEN, t); else localStorage.removeItem(LS_GHTOKEN); }
   function b64EncodeUnicode(str){
     const bytes = new TextEncoder().encode(str);
@@ -66,31 +75,27 @@
     const tag = $('#syncTag');
     tag.textContent = loadGhToken() ? '☁ sincronizado' : '⚙ configurar';
   }
-  async function ghRequest(method, body){
-    const token = loadGhToken();
+  async function ghRequest(method, body, {auth=true}={}){
     const opts = {
       method,
-      headers:{
-        'Accept':'application/vnd.github+json',
-        'Authorization': `Bearer ${token}`,
-      },
+      headers:{ 'Accept':'application/vnd.github+json' },
     };
+    if(auth){ const token = loadGhToken(); if(token) opts.headers['Authorization'] = `Bearer ${token}`; }
     if(body){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
     return fetch(GH_API + (method==='GET' ? `?t=${Date.now()}` : ''), opts);
   }
   async function pullFromGithub(showToast){
-    const token = loadGhToken();
-    if(!token) return;
+    // The repo is public, so reading doesn't need a token — only writing does.
     setSyncBadge('sincronizando…');
     try{
-      const res = await ghRequest('GET');
+      const res = await ghRequest('GET', null, {auth:false});
       if(res.status===404){
         ghSha = null;
         setSyncBadge('nenhum dado remoto ainda');
         await pushToGithub();
         return;
       }
-      if(!res.ok) throw new Error('http_'+res.status);
+      if(!res.ok){ const err=new Error('http_'+res.status); err.status=res.status; throw err; }
       const json = await res.json();
       ghSha = json.sha;
       const remote = JSON.parse(b64DecodeUnicode(json.content));
@@ -103,8 +108,8 @@
       setSyncBadge('sincronizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
       if(showToast) toast('Dados atualizados a partir da nuvem.');
     }catch(e){
-      setSyncBadge('erro ao sincronizar');
-      if(showToast) toast('Não foi possível sincronizar: '+e.message);
+      setSyncBadge('erro ao ler dados da nuvem');
+      if(showToast) toast(friendlyGhError(e));
     }
   }
   async function pushToGithub(){
@@ -125,14 +130,15 @@
       }
       if(!res.ok){
         let msg = 'http_'+res.status;
-        try{ const j = await res.json(); msg = j.message || msg; }catch(e){}
-        throw new Error(msg);
+        try{ const j = await res.json(); if(j.message) msg += ': '+j.message; }catch(e){}
+        const err = new Error(msg); err.status = res.status; throw err;
       }
       const j = await res.json();
       ghSha = j.content.sha;
       setSyncBadge('sincronizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
     }catch(e){
-      setSyncBadge('erro: token sem permissão ou inválido');
+      setSyncBadge('erro ao salvar na nuvem');
+      toast(friendlyGhError(e));
     }finally{
       ghSyncing = false;
     }
