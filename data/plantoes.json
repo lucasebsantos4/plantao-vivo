@@ -1,6 +1,139 @@
 {
-  "shifts": [],
+  "shifts": [
+    {
+      "id": "mtyxa3mc5i8ruq",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2026-09-19",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mcc3hdve",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2026-10-17",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mck3m6ze",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2026-11-14",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mco031xe",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2026-12-12",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mcepju0g",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-01-09",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mc51ss83",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-02-06",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mcg5dmej",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-03-06",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mczznr79",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-04-03",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mcm7bwi0",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-05-01",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mc4em9oa",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-05-29",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mc0mqvbv",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-06-26",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    },
+    {
+      "id": "mtyxa3mct2z9rc",
+      "createdAt": "2026-09-12T21:54:06.420Z",
+      "date": "2027-07-24",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
+    }
+  ],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-12T21:51:17.655Z"
+  "updatedAt": "2026-09-12T21:54:07.332Z"
 }
