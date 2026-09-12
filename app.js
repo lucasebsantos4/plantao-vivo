@@ -178,8 +178,10 @@
       const dayShifts = shifts.filter(s=>s.date===dIso);
       cell.className = 'day' + (dIso===todayIso ? ' today':'');
       const total = dayShifts.reduce((a,s)=>a+(s.value||0),0);
+      const locLabel = [...new Set(dayShifts.map(s=>s.location).filter(Boolean))].join(', ');
       cell.innerHTML = `<div class="d">${d}</div>
         <div class="marks">${dayShifts.map(s=>`<span class="dot" style="color:${s.status==='pago'?'var(--paid)':'var(--pending)'}"></span>`).join('')}</div>
+        ${locLabel?`<div class="loc" title="${escapeHtml(locLabel)}">${escapeHtml(locLabel)}</div>`:''}
         ${total?`<div class="amt">${BRL(total)}</div>`:''}`;
       cell.addEventListener('click', ()=>{ selectedDay = dIso; showDayPanel(dIso); });
       grid.appendChild(cell);
