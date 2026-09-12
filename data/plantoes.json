@@ -153,20 +153,9 @@
       "value": 0,
       "status": "pendente",
       "notes": ""
-    },
-    {
-      "id": "mtyxau1pzy45g9",
-      "createdAt": "2026-09-12T21:54:40.669Z",
-      "date": "2027-04-03",
-      "location": "Sem local",
-      "startTime": "07:00",
-      "endTime": "19:00",
-      "value": 0,
-      "status": "pendente",
-      "notes": ""
     }
   ],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-12T21:55:08.842Z"
+  "updatedAt": "2026-09-12T21:55:10.542Z"
 }
