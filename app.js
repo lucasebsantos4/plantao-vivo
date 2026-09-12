@@ -560,7 +560,25 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
     if(cfg) row.value = cfg.mode==='fixed' ? cfg.value : Math.round(cfg.value*hoursBetween(row.start,row.end)*100)/100;
   }
 
-  $('#reviewCancel').addEventListener('click', ()=>{ pendingImport=[]; $('#reviewCard').style.display='none'; });
+  $('#bulkLocApply').addEventListener('click', ()=>{
+    const v = $('#bulkLoc').value.trim();
+    if(!v){ toast('Digite o local para aplicar.'); return; }
+    pendingImport.forEach(row=>{ row.location = v; });
+    renderReview();
+    toast(`Local aplicado a ${pendingImport.length} plantão(ões).`);
+  });
+  $('#bulkValueApply').addEventListener('click', ()=>{
+    const v = parseFloat($('#bulkValue').value);
+    if(isNaN(v)){ toast('Digite o valor para aplicar.'); return; }
+    pendingImport.forEach(row=>{ row.value = v; });
+    renderReview();
+    toast(`Valor aplicado a ${pendingImport.length} plantão(ões).`);
+  });
+
+  $('#reviewCancel').addEventListener('click', ()=>{
+    pendingImport=[]; $('#reviewCard').style.display='none';
+    $('#bulkLoc').value=''; $('#bulkValue').value='';
+  });
   $('#reviewConfirm').addEventListener('click', ()=>{
     const rows = pendingImport.filter(r=>r.date);
     if(!rows.length){ toast('Nenhum plantão com data válida.'); return; }
@@ -576,6 +594,7 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
     $('#importStatus').textContent=''; selectedImageBlob=null;
     $('#uploadBoxContent').textContent='📷 Toque para escolher uma imagem da escala';
     $('#fileInput').value=''; $('#pasteText').value='';
+    $('#bulkLoc').value=''; $('#bulkValue').value='';
     $$('#tabs button').forEach(x=>x.classList.remove('active'));
     $('#tabs button[data-view="plantoes"]').classList.add('active');
     $$('.view').forEach(v=>v.classList.remove('active'));

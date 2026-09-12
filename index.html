@@ -253,6 +253,16 @@
 
       <div class="card" id="reviewCard" style="display:none;">
         <div class="row between" style="margin-bottom:10px;"><h2 style="margin-bottom:0;">Revisar plantões encontrados</h2></div>
+        <div class="row" style="margin-bottom:14px;align-items:flex-end;">
+          <label class="field" style="flex:1;min-width:160px;">Aplicar local a todos
+            <input type="text" id="bulkLoc" placeholder="Ex: UTI Hospital São Lucas">
+          </label>
+          <button class="btn small" id="bulkLocApply">Aplicar</button>
+          <label class="field" style="flex:1;min-width:120px;">Aplicar valor a todos
+            <input type="number" id="bulkValue" class="mono" step="0.01" placeholder="Ex: 850">
+          </label>
+          <button class="btn small" id="bulkValueApply">Aplicar</button>
+        </div>
         <div id="reviewList"></div>
         <div class="row" style="margin-top:14px;justify-content:flex-end;">
           <button class="btn" id="reviewCancel">Cancelar</button>
