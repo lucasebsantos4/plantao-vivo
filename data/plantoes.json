@@ -78,17 +78,6 @@
       "notes": ""
     },
     {
-      "id": "mtyxa3mczznr79",
-      "createdAt": "2026-09-12T21:54:06.420Z",
-      "date": "2027-04-03",
-      "location": "UTI VNS",
-      "startTime": "19:00",
-      "endTime": "07:00",
-      "value": 2300,
-      "status": "pendente",
-      "notes": ""
-    },
-    {
       "id": "mtyxau1pbk7a8i",
       "createdAt": "2026-09-12T21:54:40.669Z",
       "date": "2026-09-19",
@@ -179,5 +168,5 @@
   ],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-12T21:55:06.738Z"
+  "updatedAt": "2026-09-12T21:55:08.842Z"
 }
