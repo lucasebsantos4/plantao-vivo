@@ -40,6 +40,109 @@
   function loadApiKey(){ return localStorage.getItem(LS.apikey) || ''; }
   function saveApiKey(k){ if(k) localStorage.setItem(LS.apikey, k); else localStorage.removeItem(LS.apikey); }
 
+  // ---------- GitHub sync (stores data.json inside this app's own repo) ----------
+  const GH_OWNER = 'lucasebsantos4';
+  const GH_REPO = 'plantao-vivo';
+  const GH_PATH = 'data/plantoes.json';
+  const GH_API = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
+  const LS_GHTOKEN = 'pv_ghtoken_v1';
+  function loadGhToken(){ return localStorage.getItem(LS_GHTOKEN) || ''; }
+  function saveGhToken(t){ if(t) localStorage.setItem(LS_GHTOKEN, t); else localStorage.removeItem(LS_GHTOKEN); }
+  function b64EncodeUnicode(str){
+    const bytes = new TextEncoder().encode(str);
+    let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+    return btoa(bin);
+  }
+  function b64DecodeUnicode(b64){
+    const bin = atob(b64.replace(/\n/g,''));
+    const bytes = Uint8Array.from(bin, c=>c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+  let ghSha = null;
+  let ghSyncTimer = null;
+  let ghSyncing = false;
+  function setSyncBadge(text){ const b=$('#syncStatusBadge'); if(b) b.textContent=text; }
+  function updateHeaderTag(){
+    const tag = $('#syncTag');
+    tag.textContent = loadGhToken() ? '☁ sincronizado' : '⚙ configurar';
+  }
+  async function ghRequest(method, body){
+    const token = loadGhToken();
+    const opts = {
+      method,
+      headers:{
+        'Accept':'application/vnd.github+json',
+        'Authorization': `Bearer ${token}`,
+      },
+    };
+    if(body){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
+    return fetch(GH_API + (method==='GET' ? `?t=${Date.now()}` : ''), opts);
+  }
+  async function pullFromGithub(showToast){
+    const token = loadGhToken();
+    if(!token) return;
+    setSyncBadge('sincronizando…');
+    try{
+      const res = await ghRequest('GET');
+      if(res.status===404){
+        ghSha = null;
+        setSyncBadge('nenhum dado remoto ainda');
+        await pushToGithub();
+        return;
+      }
+      if(!res.ok) throw new Error('http_'+res.status);
+      const json = await res.json();
+      ghSha = json.sha;
+      const remote = JSON.parse(b64DecodeUnicode(json.content));
+      shifts = Array.isArray(remote.shifts) ? remote.shifts : [];
+      rates = remote.rates || {};
+      if(remote.profile) saveProfile(remote.profile);
+      saveShifts(shifts); saveRatesArr(rates);
+      $('#myName').value = (remote.profile && remote.profile.name) || $('#myName').value;
+      renderAll(); renderRates();
+      setSyncBadge('sincronizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
+      if(showToast) toast('Dados atualizados a partir da nuvem.');
+    }catch(e){
+      setSyncBadge('erro ao sincronizar');
+      if(showToast) toast('Não foi possível sincronizar: '+e.message);
+    }
+  }
+  async function pushToGithub(){
+    const token = loadGhToken();
+    if(!token) return;
+    if(ghSyncing) return;
+    ghSyncing = true;
+    setSyncBadge('sincronizando…');
+    try{
+      const payload = { shifts, rates, profile: loadProfile(), updatedAt: new Date().toISOString() };
+      const content = b64EncodeUnicode(JSON.stringify(payload, null, 2));
+      const body = { message:'Atualiza plantões', content, branch:'main' };
+      if(ghSha) body.sha = ghSha;
+      let res = await ghRequest('PUT', body);
+      if(res.status===409){
+        const getRes = await ghRequest('GET');
+        if(getRes.ok){ const j = await getRes.json(); ghSha = j.sha; body.sha = ghSha; res = await ghRequest('PUT', body); }
+      }
+      if(!res.ok){
+        let msg = 'http_'+res.status;
+        try{ const j = await res.json(); msg = j.message || msg; }catch(e){}
+        throw new Error(msg);
+      }
+      const j = await res.json();
+      ghSha = j.content.sha;
+      setSyncBadge('sincronizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
+    }catch(e){
+      setSyncBadge('erro: token sem permissão ou inválido');
+    }finally{
+      ghSyncing = false;
+    }
+  }
+  function queueSync(){
+    if(!loadGhToken()) return;
+    clearTimeout(ghSyncTimer);
+    ghSyncTimer = setTimeout(pushToGithub, 900);
+  }
+
   let shifts = loadShifts();
   let rates = loadRates();
   let calMonth = new Date(); calMonth.setDate(1);
@@ -50,7 +153,7 @@
 
   $('#refYear').value = new Date().getFullYear();
   $('#myName').value = (loadProfile().name || '');
-  $('#myName').addEventListener('change', ()=>{ saveProfile({name: $('#myName').value.trim()}); });
+  $('#myName').addEventListener('change', ()=>{ saveProfile({name: $('#myName').value.trim()}); queueSync(); });
 
   // ---------- tabs ----------
   $$('#tabs button').forEach(b=>b.addEventListener('click', ()=>{
@@ -63,17 +166,17 @@
   // ---------- shift CRUD ----------
   function addShift(data){
     shifts.push({id: uid(), createdAt: new Date().toISOString(), ...data});
-    saveShifts(shifts); renderAll();
+    saveShifts(shifts); renderAll(); queueSync();
   }
   function updateShift(id, data){
     const i = shifts.findIndex(s=>s.id===id);
-    if(i>=0){ shifts[i] = {...shifts[i], ...data}; saveShifts(shifts); renderAll(); }
+    if(i>=0){ shifts[i] = {...shifts[i], ...data}; saveShifts(shifts); renderAll(); queueSync(); }
   }
   function deleteShift(id){
     shifts = shifts.filter(s=>s.id!==id);
-    saveShifts(shifts); renderAll();
+    saveShifts(shifts); renderAll(); queueSync();
   }
-  function saveRates(){ saveRatesArr(rates); renderRates(); }
+  function saveRates(){ saveRatesArr(rates); renderRates(); queueSync(); }
 
   // ---------- shift modal ----------
   const seg = $('#fStatusSeg');
@@ -122,9 +225,12 @@
     if(editingId){ deleteShift(editingId); toast('Plantão excluído.'); closeShiftModal(); }
   });
 
-  // ---------- API key modal ----------
+  // ---------- Settings modal (API key + GitHub sync) ----------
+  $('#ghRepoLabel').textContent = `${GH_OWNER}/${GH_REPO}`;
   $('#syncTag').addEventListener('click', ()=>{
     $('#apiKeyInput').value = loadApiKey();
+    $('#ghTokenInput').value = loadGhToken();
+    setSyncBadge(loadGhToken() ? 'configurado' : 'não configurado');
     $('#apiModalBg').classList.add('open');
   });
   $('#apiModalClose').addEventListener('click', ()=>$('#apiModalBg').classList.remove('open'));
@@ -132,11 +238,28 @@
   $('#apiKeySave').addEventListener('click', ()=>{
     saveApiKey($('#apiKeyInput').value.trim());
     toast('Chave salva neste navegador.');
-    $('#apiModalBg').classList.remove('open');
   });
   $('#apiKeyClear').addEventListener('click', ()=>{
     saveApiKey(''); $('#apiKeyInput').value='';
     toast('Chave removida.');
+  });
+  $('#ghTokenSave').addEventListener('click', async ()=>{
+    const t = $('#ghTokenInput').value.trim();
+    if(!t){ toast('Cole o token antes de salvar.'); return; }
+    saveGhToken(t);
+    updateHeaderTag();
+    toast('Token salvo. Sincronizando…');
+    await pullFromGithub(true);
+  });
+  $('#ghTokenClear').addEventListener('click', ()=>{
+    saveGhToken(''); $('#ghTokenInput').value=''; ghSha=null;
+    updateHeaderTag();
+    setSyncBadge('não configurado');
+    toast('Token removido — sincronização desativada neste navegador.');
+  });
+  $('#ghSyncNow').addEventListener('click', ()=>{
+    if(!loadGhToken()){ toast('Configure o token do GitHub primeiro.'); return; }
+    pullFromGithub(true);
   });
 
   // ---------- render: plantões table ----------
@@ -275,7 +398,7 @@
     $$('.mark-paid', wrap).forEach(btn=>btn.addEventListener('click', ()=>{
       const loc = btn.dataset.loc;
       byLoc[loc].items.forEach(s=>{ const i=shifts.findIndex(x=>x.id===s.id); if(i>=0) shifts[i].status='pago'; });
-      saveShifts(shifts); renderAll();
+      saveShifts(shifts); renderAll(); queueSync();
       toast('Marcado como pago.');
     }));
   }
@@ -373,7 +496,7 @@
         rates = data.rates || {}; saveRatesArr(rates);
         if(data.profile) saveProfile(data.profile);
         $('#myName').value = (data.profile && data.profile.name) || '';
-        renderAll(); renderRates();
+        renderAll(); renderRates(); queueSync();
         toast(`Backup importado: ${shifts.length} plantão(ões).`);
       }catch(err){ toast('Arquivo de backup inválido.'); }
     };
@@ -601,7 +724,7 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
     $('#tabs button[data-view="plantoes"]').classList.add('active');
     $$('.view').forEach(v=>v.classList.remove('active'));
     $('#view-plantoes').classList.add('active');
-    renderAll();
+    renderAll(); queueSync();
   });
 
   // ---------- global render ----------
@@ -613,4 +736,12 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
     renderFaturamento();
   }
   renderAll(); renderRates();
+  updateHeaderTag();
+  if(loadGhToken()) pullFromGithub(false);
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='visible' && loadGhToken() && !ghSyncing
+       && !$('#shiftModalBg').classList.contains('open') && $('#reviewCard').style.display!=='block'){
+      pullFromGithub(false);
+    }
+  });
 })();

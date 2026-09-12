@@ -156,7 +156,7 @@
     <div class="brand">
       <div class="mark">PL</div>
       <h1>Plantões do Lucas</h1>
-      <div class="tag" id="syncTag" title="Configurar chave de API">⚙ configurar</div>
+      <div class="tag" id="syncTag" title="Configurações">⚙ configurar</div>
     </div>
     <nav class="tabs" id="tabs">
       <button data-view="resumo" class="active">Resumo</button>
@@ -189,7 +189,7 @@
       </div>
       <div class="card">
         <h2>Seus dados <span class="sub">este app guarda tudo só neste navegador</span></h2>
-        <p class="note">Sem servidor próprio, os plantões ficam salvos no armazenamento deste navegador/aparelho. Para levar os dados para outro computador ou celular, exporte um backup aqui e importe lá.</p>
+        <p class="note">Ative a sincronização em "⚙ configurar" no topo para os plantões aparecerem automaticamente em qualquer computador ou celular. Sem isso, os dados ficam só neste navegador — use exportar/importar backup abaixo para levá-los manualmente a outro aparelho.</p>
         <div class="row" style="margin-top:10px;">
           <button class="btn" id="exportBtn">Exportar backup (.json)</button>
           <button class="btn" id="importBtn">Importar backup</button>
@@ -328,15 +328,39 @@
 <div class="modal-bg" id="apiModalBg">
   <div class="modal">
     <button class="icon-btn close-x" id="apiModalClose">✕</button>
-    <h3>Configurar leitura de escalas</h3>
+    <h3>Configurações</h3>
+
+    <h3 style="font-size:14px;margin-top:4px;">Leitura de escalas por foto</h3>
     <p class="note">Cole aqui sua chave de API da Anthropic (criada em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>). Ela fica salva só neste navegador (localStorage), nunca é enviada a mim nem a mais ninguém além da própria Anthropic — é usada apenas para ler suas fotos de escala. Cada leitura custa poucos centavos, cobrados diretamente na sua conta Anthropic.</p>
-    <label class="field" style="margin-top:12px;">Chave de API (começa com <span class="mono">sk-ant-</span>)
+    <label class="field" style="margin-top:10px;">Chave de API (começa com <span class="mono">sk-ant-</span>)
       <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     </label>
-    <div class="actions">
-      <button class="btn danger" id="apiKeyClear">Remover chave</button>
-      <button class="btn" id="apiModalCancel">Cancelar</button>
-      <button class="btn primary" id="apiKeySave">Salvar</button>
+    <div class="actions" style="margin-top:8px;">
+      <button class="btn danger small" id="apiKeyClear">Remover chave</button>
+      <button class="btn primary small" id="apiKeySave">Salvar chave</button>
+    </div>
+
+    <div style="height:1px;background:var(--line);margin:20px 0;"></div>
+
+    <h3 style="font-size:14px;">Sincronizar entre dispositivos</h3>
+    <p class="note">Guarda seus plantões dentro do seu próprio repositório do GitHub (<span class="mono" id="ghRepoLabel"></span>), assim o mesmo dado aparece no computador e no celular. Crie um token em
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>:
+      marque "Only select repositories" → escolha este repositório → em "Repository permissions" defina <b>Contents: Read and write</b> → gere e cole abaixo. O token fica salvo só neste navegador.
+    </p>
+    <label class="field" style="margin-top:10px;">Token do GitHub (começa com <span class="mono">github_pat_</span>)
+      <input type="password" id="ghTokenInput" placeholder="github_pat_...">
+    </label>
+    <div class="row" style="margin-top:8px;">
+      <span class="kbadge" id="syncStatusBadge">não configurado</span>
+    </div>
+    <div class="actions" style="margin-top:8px;">
+      <button class="btn danger small" id="ghTokenClear">Remover token</button>
+      <button class="btn small" id="ghSyncNow">Sincronizar agora</button>
+      <button class="btn primary small" id="ghTokenSave">Salvar token</button>
+    </div>
+
+    <div class="actions" style="margin-top:18px;">
+      <button class="btn" id="apiModalCancel">Fechar</button>
     </div>
   </div>
 </div>
