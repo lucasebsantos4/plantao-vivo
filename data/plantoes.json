@@ -21,20 +21,9 @@
       "value": 0,
       "status": "pendente",
       "notes": ""
-    },
-    {
-      "id": "mtyxau1plalgo2",
-      "createdAt": "2026-09-12T21:54:40.669Z",
-      "date": "2026-10-17",
-      "location": "Sem local",
-      "startTime": "07:00",
-      "endTime": "19:00",
-      "value": 0,
-      "status": "pendente",
-      "notes": ""
     }
   ],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-12T21:55:32.807Z"
+  "updatedAt": "2026-09-12T21:55:34.757Z"
 }
