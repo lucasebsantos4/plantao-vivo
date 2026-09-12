@@ -317,6 +317,16 @@
       </label>
     </div>
     <label class="field" style="margin-top:12px;">Observações<textarea id="fNotes" rows="2"></textarea></label>
+
+    <label class="field" id="fRecurringWrap" style="margin-top:14px;flex-direction:row;align-items:center;gap:8px;">
+      <input type="checkbox" id="fRecurring" style="width:auto;">
+      <span>Repetir este plantão</span>
+    </label>
+    <div class="field-grid" id="recurringFields" style="display:none;margin-top:8px;">
+      <label class="field">A cada quantas semanas<input type="number" id="fRecurWeeks" min="1" value="4"></label>
+      <label class="field">Quantas vezes no total (incluindo esta)<input type="number" id="fRecurCount" min="2" value="4"></label>
+    </div>
+
     <div class="actions">
       <button class="btn danger" id="fDelete" style="display:none;">Excluir</button>
       <button class="btn" id="fCancel">Cancelar</button>

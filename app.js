@@ -174,6 +174,11 @@
     shifts.push({id: uid(), createdAt: new Date().toISOString(), ...data});
     saveShifts(shifts); renderAll(); queueSync();
   }
+  function addShiftsBulk(dataArr){
+    const now = new Date().toISOString();
+    dataArr.forEach(data=>shifts.push({id: uid(), createdAt: now, ...data}));
+    saveShifts(shifts); renderAll(); queueSync();
+  }
   function updateShift(id, data){
     const i = shifts.findIndex(s=>s.id===id);
     if(i>=0){ shifts[i] = {...shifts[i], ...data}; saveShifts(shifts); renderAll(); queueSync(); }
@@ -205,8 +210,16 @@
     $$('#fStatusSeg button').forEach(x=>x.classList.toggle('on', x.dataset.v===fStatus));
     $('#fDelete').style.display = existing ? 'inline-block' : 'none';
     $('#locOptions').innerHTML = [...new Set(shifts.map(s=>s.location).filter(Boolean))].map(l=>`<option value="${escapeHtml(l)}">`).join('');
+    $('#fRecurringWrap').style.display = existing ? 'none' : 'flex';
+    $('#fRecurring').checked = false;
+    $('#recurringFields').style.display = 'none';
+    $('#fRecurWeeks').value = 4;
+    $('#fRecurCount').value = 4;
     $('#shiftModalBg').classList.add('open');
   }
+  $('#fRecurring').addEventListener('change', ()=>{
+    $('#recurringFields').style.display = $('#fRecurring').checked ? 'grid' : 'none';
+  });
   function closeShiftModal(){ $('#shiftModalBg').classList.remove('open'); editingId=null; }
   $('#fCancel').addEventListener('click', closeShiftModal);
   $('#shiftModalClose').addEventListener('click', closeShiftModal);
@@ -223,8 +236,24 @@
       notes: $('#fNotes').value.trim(),
     };
     if(!data.date){ toast('Informe a data.'); return; }
-    if(editingId) updateShift(editingId, data); else addShift(data);
-    toast('Plantão salvo.');
+    if(editingId){
+      updateShift(editingId, data);
+      toast('Plantão salvo.');
+    } else if($('#fRecurring').checked){
+      const weeks = Math.max(1, parseInt($('#fRecurWeeks').value)||4);
+      const count = Math.max(2, parseInt($('#fRecurCount').value)||4);
+      const rows = [];
+      const [y,m,d] = data.date.split('-').map(Number);
+      for(let i=0;i<count;i++){
+        const dt = new Date(y, m-1, d + i*weeks*7);
+        rows.push({...data, date: iso(dt)});
+      }
+      addShiftsBulk(rows);
+      toast(`${count} plantões recorrentes criados (a cada ${weeks} semana(s)).`);
+    } else {
+      addShift(data);
+      toast('Plantão salvo.');
+    }
     closeShiftModal();
   });
   $('#fDelete').addEventListener('click', ()=>{
