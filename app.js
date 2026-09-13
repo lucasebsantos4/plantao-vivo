@@ -69,6 +69,15 @@
   }
   let ghSha = null;
   let remoteSecretsEnc = null; // last-known {salt, iv, ct} blob for the encrypted Anthropic key + GitHub token
+  let sessionPassword = null; // the app-lock password for THIS session only — never persisted anywhere
+  async function autoSyncSecrets(){
+    if(!sessionPassword) return;
+    try{
+      remoteSecretsEnc = await encryptSecrets(sessionPassword, {apiKey: loadApiKey(), ghToken: loadGhToken()});
+      updateSecretsBadge();
+      if(loadGhToken()) await pushToGithub();
+    }catch(e){ console.error('autoSyncSecrets failed', e); }
+  }
   let ghSyncTimer = null;
   let ghSyncing = false;
   function setSyncBadge(text){ const b=$('#syncStatusBadge'); if(b) b.textContent=text; }
@@ -423,7 +432,7 @@
     setSyncBadge(loadGhToken() ? 'configurado' : 'não configurado');
     $('#gcalClientIdInput').value = loadGcalClientId();
     setGcalBadge(isGcalPreviouslyConnected() ? 'conectado' : 'não conectado');
-    $('#syncPassInput').value = '';
+    $('#newAppPassInput').value = '';
     updateSecretsBadge();
     $('#apiModalBg').classList.add('open');
   });
@@ -432,10 +441,12 @@
   $('#apiKeySave').addEventListener('click', ()=>{
     saveApiKey($('#apiKeyInput').value.trim());
     toast('Chave salva neste navegador.');
+    autoSyncSecrets();
   });
   $('#apiKeyClear').addEventListener('click', ()=>{
     saveApiKey(''); $('#apiKeyInput').value='';
     toast('Chave removida.');
+    autoSyncSecrets();
   });
   $('#ghTokenSave').addEventListener('click', async ()=>{
     const t = $('#ghTokenInput').value.trim();
@@ -444,12 +455,14 @@
     updateHeaderTag();
     toast('Token salvo. Sincronizando…');
     await pullFromGithub(true);
+    autoSyncSecrets();
   });
   $('#ghTokenClear').addEventListener('click', ()=>{
     saveGhToken(''); $('#ghTokenInput').value=''; ghSha=null;
     updateHeaderTag();
     setSyncBadge('não configurado');
     toast('Token removido — sincronização desativada neste navegador.');
+    autoSyncSecrets();
   });
   $('#ghSyncNow').addEventListener('click', ()=>{
     if(!loadGhToken()){ toast('Configure o token do GitHub primeiro.'); return; }
@@ -471,28 +484,13 @@
   });
   $('#gcalPushAll').addEventListener('click', ()=>{ pushAllShiftsToGoogle(); });
 
-  $('#secretsEncryptSave').addEventListener('click', async ()=>{
-    const pass = $('#syncPassInput').value;
-    if(!pass){ toast('Digite uma frase secreta.'); return; }
-    const apiKey = loadApiKey(), ghToken = loadGhToken();
-    if(!apiKey && !ghToken){ toast('Não há chave da Anthropic nem token do GitHub configurados neste aparelho ainda.'); return; }
-    try{
-      remoteSecretsEnc = await encryptSecrets(pass, {apiKey, ghToken});
-      updateSecretsBadge();
-      if(ghToken){ await pushToGithub(); toast('Chaves cifradas e sincronizadas.'); }
-      else { toast('Chaves cifradas — configure o token do GitHub para poder enviá-las à nuvem.'); }
-    }catch(e){ toast('Erro ao cifrar as chaves: '+e.message); }
-  });
-  $('#secretsUnlock').addEventListener('click', async ()=>{
-    const pass = $('#syncPassInput').value;
-    if(!pass){ toast('Digite a frase secreta.'); return; }
-    if(!remoteSecretsEnc){ toast('Nenhuma chave salva na nuvem ainda.'); return; }
-    try{
-      const obj = await decryptSecrets(pass, remoteSecretsEnc);
-      if(obj.apiKey){ saveApiKey(obj.apiKey); $('#apiKeyInput').value = obj.apiKey; }
-      if(obj.ghToken){ saveGhToken(obj.ghToken); $('#ghTokenInput').value = obj.ghToken; setSyncBadge('configurado'); updateHeaderTag(); }
-      toast('Chaves carregadas neste aparelho.');
-    }catch(e){ toast('Frase incorreta, ou nada para decifrar.'); }
+  $('#changeAppPassBtn').addEventListener('click', async ()=>{
+    const newPass = $('#newAppPassInput').value;
+    if(!newPass){ toast('Digite a nova senha.'); return; }
+    sessionPassword = newPass;
+    $('#newAppPassInput').value = '';
+    await autoSyncSecrets();
+    toast('Senha do app atualizada neste e nos próximos aparelhos.');
   });
 
   // ---------- render: plantões table ----------
@@ -974,9 +972,58 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
   }
   renderAll(); renderRates();
   updateHeaderTag();
+
+  // ---------- app-lock screen ----------
+  // The lock password is never stored anywhere (not in localStorage, not in the
+  // repo) — it lives only in the `sessionPassword` variable while this tab is open,
+  // and doubles as the key that encrypts/decrypts the Anthropic key + GitHub token.
+  async function attemptUnlock(){
+    const pass = $('#lockPassInput').value;
+    if(!pass) return;
+    $('#lockError').textContent = '';
+    $('#lockSubmitBtn').disabled = true;
+    try{
+      if(remoteSecretsEnc){
+        const obj = await decryptSecrets(pass, remoteSecretsEnc);
+        if(obj.apiKey) saveApiKey(obj.apiKey);
+        if(obj.ghToken) saveGhToken(obj.ghToken);
+      }
+      sessionPassword = pass;
+      if(loadApiKey() || loadGhToken()) await autoSyncSecrets();
+      updateHeaderTag();
+      updateSecretsBadge();
+      $('#lockScreen').hidden = true;
+      $('#mainApp').hidden = false;
+      $('#lockPassInput').value = '';
+    }catch(e){
+      $('#lockError').textContent = 'Senha incorreta.';
+    }finally{
+      $('#lockSubmitBtn').disabled = false;
+    }
+  }
+  $('#lockSubmitBtn').addEventListener('click', attemptUnlock);
+  $('#lockPassInput').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptUnlock(); });
+  $('#lockForgot').addEventListener('click', ()=>{
+    remoteSecretsEnc = null;
+    $('#lockSubtitle').textContent = 'Ok — a senha que você digitar agora vira a nova senha do app (as chaves salvas antes precisarão ser coladas de novo nas configurações).';
+    $('#lockError').textContent = '';
+    $('#lockPassInput').value=''; $('#lockPassInput').focus();
+  });
+
   // Reading data.json is public (no token needed), so always try — this is what lets a
   // brand-new device pick up shifts, the Google Client ID, and encrypted keys automatically.
-  pullFromGithub(false);
+  // We wait for it before the lock screen decides whether this is a first-time setup
+  // or a real password check, so it never opens with stale info.
+  (async () => {
+    await pullFromGithub(false);
+    if(remoteSecretsEnc){
+      $('#lockSubtitle').textContent = 'Digite a senha do app para entrar.';
+    } else {
+      $('#lockSubtitle').textContent = 'Nenhuma senha configurada ainda — a senha que você digitar agora vai proteger o app e cifrar suas chaves.';
+    }
+    $('#lockPassInput').focus();
+  })();
+
   document.addEventListener('visibilitychange', ()=>{
     if(document.visibilityState==='visible' && loadGhToken() && !ghSyncing
        && !$('#shiftModalBg').classList.contains('open') && $('#reviewCard').style.display!=='block'){

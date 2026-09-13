@@ -149,10 +149,34 @@
 
   .note{font-size:12.5px;color:var(--ink-faint);line-height:1.5;}
   .kbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);}
+
+  #lockScreen{position:fixed;inset:0;z-index:500;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:20px;}
+  #lockScreen[hidden]{display:none;}
+  .lock-card{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px;text-align:center;}
+  .lock-card .mark{width:44px;height:44px;border-radius:12px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-weight:700;font-size:20px;margin:0 auto 14px;}
+  .lock-card h2{font-size:19px;margin-bottom:6px;}
+  .lock-card p{font-size:12.5px;color:var(--ink-faint);margin-bottom:18px;line-height:1.5;}
+  .lock-card input{text-align:center;letter-spacing:.03em;margin-bottom:10px;}
+  .lock-card .btn{width:100%;}
+  #lockError{color:var(--pending);font-size:12.5px;min-height:16px;margin-top:8px;}
+  #lockForgot{display:inline-block;margin-top:14px;font-size:12px;color:var(--ink-faint);text-decoration:underline;cursor:pointer;background:none;border:none;}
 </style>
 </head>
 <body>
-<div class="app">
+
+<div id="lockScreen">
+  <div class="lock-card">
+    <div class="mark">PL</div>
+    <h2>Plantões do Lucas</h2>
+    <p id="lockSubtitle">Digite a senha do app para entrar.</p>
+    <input type="password" id="lockPassInput" placeholder="Senha">
+    <button class="btn primary" id="lockSubmitBtn">Entrar</button>
+    <div id="lockError"></div>
+    <button id="lockForgot" type="button">Não lembro a senha / configurar do zero</button>
+  </div>
+</div>
+
+<div class="app" id="mainApp" hidden>
   <header class="top">
     <div class="brand">
       <div class="mark">PL</div>
@@ -395,17 +419,16 @@
 
     <div style="height:1px;background:var(--line);margin:20px 0;"></div>
 
-    <h3 style="font-size:14px;">Levar as chaves para outros aparelhos</h3>
-    <p class="note">Defina uma frase secreta (só memorável, não precisa ser complexa) para sua chave da Anthropic e seu token do GitHub viajarem junto com seus dados — sem colar de novo em cada aparelho. A frase nunca sai deste navegador; só uma versão cifrada com ela fica salva no seu repositório, junto dos plantões. O ID do cliente do Google Calendário não é secreto e já é copiado automaticamente para outros aparelhos, sem precisar de frase.</p>
-    <label class="field" style="margin-top:10px;">Frase secreta
-      <input type="password" id="syncPassInput" placeholder="Ex: uma frase só sua">
-    </label>
+    <h3 style="font-size:14px;">Senha do app</h3>
+    <p class="note">A mesma senha que você digita para abrir o app cifra sua chave da Anthropic e seu token do GitHub automaticamente — eles viajam junto com seus dados para outros aparelhos, sem colar de novo em nenhum campo. A senha nunca é salva em nenhum lugar (nem aqui, nem no repositório); só uma versão cifrada com ela fica no seu repositório, junto dos plantões. O ID do cliente do Google Calendário não é secreto e já sincroniza sozinho.</p>
     <div class="row" style="margin-top:8px;">
       <span class="kbadge" id="secretsBadge">nenhuma chave salva na nuvem</span>
     </div>
+    <label class="field" style="margin-top:10px;">Trocar a senha do app
+      <input type="password" id="newAppPassInput" placeholder="Nova senha">
+    </label>
     <div class="actions" style="margin-top:8px;">
-      <button class="btn small" id="secretsUnlock">Usar esta frase para carregar chaves salvas</button>
-      <button class="btn primary small" id="secretsEncryptSave">Salvar chaves deste aparelho com esta frase</button>
+      <button class="btn primary small" id="changeAppPassBtn">Salvar nova senha</button>
     </div>
 
     <div class="actions" style="margin-top:18px;">
