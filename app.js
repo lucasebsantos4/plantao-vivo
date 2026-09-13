@@ -68,6 +68,7 @@
     return new TextDecoder().decode(bytes);
   }
   let ghSha = null;
+  let remoteSecretsEnc = null; // last-known {salt, iv, ct} blob for the encrypted Anthropic key + GitHub token
   let ghSyncTimer = null;
   let ghSyncing = false;
   function setSyncBadge(text){ const b=$('#syncStatusBadge'); if(b) b.textContent=text; }
@@ -84,6 +85,37 @@
     if(body){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
     return fetch(GH_API + (method==='GET' ? `?t=${Date.now()}` : ''), opts);
   }
+  // ---------- client-side crypto for cross-device key sync ----------
+  // The Anthropic key and GitHub token are real secrets and the data.json they
+  // travel in is public, so they're never stored there in the clear — only
+  // AES-GCM ciphertext (key derived from a passphrase via PBKDF2) ever leaves this browser.
+  function bytesToB64(bytes){ let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b)); return btoa(bin); }
+  function b64ToBytes(b64){ return Uint8Array.from(atob(b64), c=>c.charCodeAt(0)); }
+  async function deriveAesKey(passphrase, saltB64){
+    const salt = saltB64 ? b64ToBytes(saltB64) : crypto.getRandomValues(new Uint8Array(16));
+    const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), {name:'PBKDF2'}, false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey(
+      {name:'PBKDF2', salt, iterations:150000, hash:'SHA-256'},
+      keyMaterial, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']
+    );
+    return {key, salt};
+  }
+  async function encryptSecrets(passphrase, obj){
+    const {key, salt} = await deriveAesKey(passphrase, null);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ctBuf = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, new TextEncoder().encode(JSON.stringify(obj)));
+    return { salt: bytesToB64(salt), iv: bytesToB64(iv), ct: bytesToB64(new Uint8Array(ctBuf)) };
+  }
+  async function decryptSecrets(passphrase, blob){
+    const {key} = await deriveAesKey(passphrase, blob.salt);
+    const ptBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv: b64ToBytes(blob.iv)}, key, b64ToBytes(blob.ct));
+    return JSON.parse(new TextDecoder().decode(ptBuf));
+  }
+  function updateSecretsBadge(){
+    const b = $('#secretsBadge'); if(!b) return;
+    b.textContent = remoteSecretsEnc ? 'há chaves salvas na nuvem' : 'nenhuma chave salva na nuvem';
+  }
+
   async function pullFromGithub(showToast){
     // The repo is public, so reading doesn't need a token — only writing does.
     setSyncBadge('sincronizando…');
@@ -102,6 +134,9 @@
       shifts = Array.isArray(remote.shifts) ? remote.shifts : [];
       rates = remote.rates || {};
       if(remote.profile) saveProfile(remote.profile);
+      if(remote.gcalClientId && !loadGcalClientId()) saveGcalClientId(remote.gcalClientId);
+      remoteSecretsEnc = remote.secretsEnc || null;
+      updateSecretsBadge();
       saveShifts(shifts); saveRatesArr(rates);
       $('#myName').value = (remote.profile && remote.profile.name) || $('#myName').value;
       renderAll(); renderRates();
@@ -119,7 +154,12 @@
     ghSyncing = true;
     setSyncBadge('sincronizando…');
     try{
-      const payload = { shifts, rates, profile: loadProfile(), updatedAt: new Date().toISOString() };
+      const payload = {
+        shifts, rates, profile: loadProfile(),
+        gcalClientId: loadGcalClientId() || null,
+        secretsEnc: remoteSecretsEnc,
+        updatedAt: new Date().toISOString(),
+      };
       const content = b64EncodeUnicode(JSON.stringify(payload, null, 2));
       const body = { message:'Atualiza plantões', content, branch:'main' };
       if(ghSha) body.sha = ghSha;
@@ -383,6 +423,8 @@
     setSyncBadge(loadGhToken() ? 'configurado' : 'não configurado');
     $('#gcalClientIdInput').value = loadGcalClientId();
     setGcalBadge(isGcalPreviouslyConnected() ? 'conectado' : 'não conectado');
+    $('#syncPassInput').value = '';
+    updateSecretsBadge();
     $('#apiModalBg').classList.add('open');
   });
   $('#apiModalClose').addEventListener('click', ()=>$('#apiModalBg').classList.remove('open'));
@@ -428,6 +470,30 @@
     toast('Desconectado. Os eventos já criados continuam na sua agenda.');
   });
   $('#gcalPushAll').addEventListener('click', ()=>{ pushAllShiftsToGoogle(); });
+
+  $('#secretsEncryptSave').addEventListener('click', async ()=>{
+    const pass = $('#syncPassInput').value;
+    if(!pass){ toast('Digite uma frase secreta.'); return; }
+    const apiKey = loadApiKey(), ghToken = loadGhToken();
+    if(!apiKey && !ghToken){ toast('Não há chave da Anthropic nem token do GitHub configurados neste aparelho ainda.'); return; }
+    try{
+      remoteSecretsEnc = await encryptSecrets(pass, {apiKey, ghToken});
+      updateSecretsBadge();
+      if(ghToken){ await pushToGithub(); toast('Chaves cifradas e sincronizadas.'); }
+      else { toast('Chaves cifradas — configure o token do GitHub para poder enviá-las à nuvem.'); }
+    }catch(e){ toast('Erro ao cifrar as chaves: '+e.message); }
+  });
+  $('#secretsUnlock').addEventListener('click', async ()=>{
+    const pass = $('#syncPassInput').value;
+    if(!pass){ toast('Digite a frase secreta.'); return; }
+    if(!remoteSecretsEnc){ toast('Nenhuma chave salva na nuvem ainda.'); return; }
+    try{
+      const obj = await decryptSecrets(pass, remoteSecretsEnc);
+      if(obj.apiKey){ saveApiKey(obj.apiKey); $('#apiKeyInput').value = obj.apiKey; }
+      if(obj.ghToken){ saveGhToken(obj.ghToken); $('#ghTokenInput').value = obj.ghToken; setSyncBadge('configurado'); updateHeaderTag(); }
+      toast('Chaves carregadas neste aparelho.');
+    }catch(e){ toast('Frase incorreta, ou nada para decifrar.'); }
+  });
 
   // ---------- render: plantões table ----------
   function renderShiftsTable(){
@@ -908,7 +974,9 @@ ${pastedText ? ('\nTexto da escala:\n' + pastedText.slice(0,4000)) : '\nA escala
   }
   renderAll(); renderRates();
   updateHeaderTag();
-  if(loadGhToken()) pullFromGithub(false);
+  // Reading data.json is public (no token needed), so always try — this is what lets a
+  // brand-new device pick up shifts, the Google Client ID, and encrypted keys automatically.
+  pullFromGithub(false);
   document.addEventListener('visibilitychange', ()=>{
     if(document.visibilityState==='visible' && loadGhToken() && !ghSyncing
        && !$('#shiftModalBg').classList.contains('open') && $('#reviewCard').style.display!=='block'){

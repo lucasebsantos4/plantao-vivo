@@ -393,6 +393,21 @@
       <button class="btn primary small" id="gcalConnect">Conectar com Google</button>
     </div>
 
+    <div style="height:1px;background:var(--line);margin:20px 0;"></div>
+
+    <h3 style="font-size:14px;">Levar as chaves para outros aparelhos</h3>
+    <p class="note">Defina uma frase secreta (só memorável, não precisa ser complexa) para sua chave da Anthropic e seu token do GitHub viajarem junto com seus dados — sem colar de novo em cada aparelho. A frase nunca sai deste navegador; só uma versão cifrada com ela fica salva no seu repositório, junto dos plantões. O ID do cliente do Google Calendário não é secreto e já é copiado automaticamente para outros aparelhos, sem precisar de frase.</p>
+    <label class="field" style="margin-top:10px;">Frase secreta
+      <input type="password" id="syncPassInput" placeholder="Ex: uma frase só sua">
+    </label>
+    <div class="row" style="margin-top:8px;">
+      <span class="kbadge" id="secretsBadge">nenhuma chave salva na nuvem</span>
+    </div>
+    <div class="actions" style="margin-top:8px;">
+      <button class="btn small" id="secretsUnlock">Usar esta frase para carregar chaves salvas</button>
+      <button class="btn primary small" id="secretsEncryptSave">Salvar chaves deste aparelho com esta frase</button>
+    </div>
+
     <div class="actions" style="margin-top:18px;">
       <button class="btn" id="apiModalCancel">Fechar</button>
     </div>
