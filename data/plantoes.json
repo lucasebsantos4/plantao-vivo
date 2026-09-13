@@ -75,5 +75,11 @@
   ],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-13T10:26:39.013Z"
+  "gcalClientId": "690943383579-2hjgchrq5i3s5i9ac8qttjp5gglrih1a.apps.googleusercontent.com",
+  "secretsEnc": {
+    "salt": "x+8CBHdizaWKnjQSBoc5mA==",
+    "iv": "zK7d1pSXciwHzn9l",
+    "ct": "tWaJUB/kGupOWAu4zJE+3HFvbCVPjALWTr5Piqh3geA3l9hi/pFEkWtZOVc03S3RyxzrMlZ7O36gMKJK/dkcXWAaMWtM8iYJorRe1ggVfUXjmtlHgKwABvFau5fN8PgEWpGVftvIhBxM75A+tsjOOS/WTKXJfyJDmolKu92lOe8/ne7Kg2qN7k01HR+Kg3M+awdvk3Vov4bHs9mB3TVZKS1MecG0pqNHHSLvP07CmteScdFu2ta6tjSVy/KcvGBvnEnaco28v3bFof1zJCTfjDGToDbQU9Qy5nB/JTenugQJNuMK+ZpzOPn61lakfHT4"
+  },
+  "updatedAt": "2026-09-13T10:29:14.614Z"
 }
