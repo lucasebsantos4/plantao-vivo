@@ -1,18 +1,6 @@
 {
   "shifts": [
     {
-      "id": "mtyxdg6lsvpcfn",
-      "createdAt": "2026-09-12T21:56:42.669Z",
-      "date": "2026-09-19",
-      "location": "UTI VNS",
-      "startTime": "07:00",
-      "endTime": "19:00",
-      "value": 2250,
-      "status": "pendente",
-      "notes": "",
-      "gcalEventId": "7oh2okn8e2ppdp81nrvaim9br8"
-    },
-    {
       "id": "mtyxdg6lj6prf1",
       "createdAt": "2026-09-12T21:56:42.669Z",
       "date": "2026-10-17",
@@ -87,5 +75,5 @@
   ],
   "rates": {},
   "profile": {},
-  "updatedAt": "2026-09-13T10:26:28.734Z"
+  "updatedAt": "2026-09-13T10:26:39.013Z"
 }
