@@ -1,5 +1,17 @@
 {
-  "shifts": [],
+  "shifts": [
+    {
+      "id": "mu1ebimchryzz4",
+      "createdAt": "2026-09-14T15:26:38.340Z",
+      "date": "2026-09-30",
+      "location": "Sem local",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 1800,
+      "status": "pendente",
+      "notes": ""
+    }
+  ],
   "rates": {},
   "profile": {},
   "gcalClientId": "690943383579-2hjgchrq5i3s5i9ac8qttjp5gglrih1a.apps.googleusercontent.com",
@@ -8,5 +20,5 @@
     "iv": "VrXX6onprcdsVlR1",
     "ct": "Aa+pXBU9dCzxq9EWUPOUXXItsbIxbcwMYLUjkD3k66TAA6sg3Ydh2KMuPfeaub97GNwao+NBKzbL765g/Zl4S4og2yJUIjhCk/6oMLSNAao+SmF4bzGpQag6/OMZBpFHTcplTHYVnrY9PP9uE/XLpJuI8RDtYNB6WdSavXDSnkPhfaKxWmx2tU1FFDkc+rLvib6JOT/RMF4iaTpfQOtrGhsE7xP7XXXNvIFGP7crfHveMrXEnCRrJW2eXJj42+cI6RJk249ntftrSC9flogjHcJ7gchd16qPbyKpYJwzZeQHyEyxq0C02muF0TI0OW1x"
   },
-  "updatedAt": "2026-09-14T15:26:06.261Z"
+  "updatedAt": "2026-09-14T15:26:39.263Z"
 }
