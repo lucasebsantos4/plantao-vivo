@@ -175,6 +175,17 @@
       "status": "pendente",
       "notes": "",
       "gcalEventId": "n2vh81e1p0no5dlscnir42b6qg"
+    },
+    {
+      "id": "mu339l7jubbtdc",
+      "createdAt": "2026-09-15T19:52:44.959Z",
+      "date": "2026-10-17",
+      "location": "UTI VNS",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "value": 2300,
+      "status": "pendente",
+      "notes": ""
     }
   ],
   "rates": {
@@ -192,5 +203,5 @@
     "iv": "rIvyqZIHAyUJnWU+",
     "ct": "tEN94TIDi9uhiCJm62AvQvsgHkfI7HcMIOwzKM0wwLp0QTvpourQ0DUcjPVQRcyNmbjeT6swPIckGrelPQ/kyHRCNcoL/saRmYJ4hcUD1ZFvixwNCu68XNXI0SdhDvuVXz1UaoT7X2yEL8p64KhF1zqwuJrJK1NUmT1N7pUp/wndmrtEawOFtU1unrgUvVsc1R2D0xaI3hjN+i2mLVyM6R61/xKN7DWUpKxM4tAB2pQG1iKMRO6FeQgsf23hnkc1STU0QOaC/ckpIPWvGCjcX/M9IzuxUVEjiOnGT9BfoZqzOlBr/yf8UmOxHgVghfCzjKrk"
   },
-  "updatedAt": "2026-09-15T19:52:35.973Z"
+  "updatedAt": "2026-09-15T19:52:45.866Z"
 }
