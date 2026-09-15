@@ -10,7 +10,8 @@
       "status": "pendente",
       "notes": "",
       "source": "import",
-      "createdAt": "2026-09-15T19:43:30.425Z"
+      "createdAt": "2026-09-15T19:43:30.425Z",
+      "gcalEventId": "b4hu9mkeqdcs68f6lsaarsdoi0"
     },
     {
       "id": "mu32xpbuc1rfpa",
@@ -22,7 +23,8 @@
       "status": "pendente",
       "notes": "",
       "source": "import",
-      "createdAt": "2026-09-15T19:43:30.426Z"
+      "createdAt": "2026-09-15T19:43:30.426Z",
+      "gcalEventId": "vneo915051e1bf1jcb6kerbj2o"
     }
   ],
   "rates": {},
@@ -35,5 +37,5 @@
     "iv": "MTBWEM2PZEt8d8et",
     "ct": "ctTtNUN19UKdo84cxTlh5089srIATLSqF37QjgR6Dzi4sVOH4pXf8hFNuJFrsdPHY2QURPmaPKvgzM9GLeWvlCV2gtynhFYV78SHh/gWQ4QKxjPeyagpcQj/Zs/dkQ8/DnXNByY7k8E6uWKHf47Tn9Qa8BbQW4qfsKJGX33R3V6UKWgFLcKYjSys8FjsZ35aVIclUXNCjYi4my0r4dqpRgrSI1fmZgoYTGtt7qkRNcQxnVLANuQk9oB5YHkB+5OpbII04mBH+F9W+b727Xa4ToVVAs/WGqbTYjgsKHCzX/9JqyGwh1D4hAV4u9mlGFarCsL8"
   },
-  "updatedAt": "2026-09-15T19:43:31.401Z"
+  "updatedAt": "2026-09-15T19:43:42.316Z"
 }
